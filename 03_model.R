@@ -6,7 +6,7 @@
 #' was implemented
 
 # .rs.restartR()
-toto
+
 ls()
 rm(list=ls())
 
