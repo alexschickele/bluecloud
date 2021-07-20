@@ -26,7 +26,7 @@ X <- as.matrix(read_feather(paste0(input.wd,"/data/X.feather")))
 Y <- as.matrix(read_feather(paste0(input.wd,"/data/Y.feather")))
 N <- nrow(X)
 CHEATCODE <- 1 #testing if multiplying Y is doing something, sadly YES...
-Ntarget <- c(2) # which targets do we take into account among 1, 2 and 3
+Ntarget <- c(1,2,3) # which targets do we take into account among 1, 2 and 3
 
 #' In fact, the square function works opposite when the value is <1. That's why 
 #' multiplying by 10 or more works. Now need to find a way to correct that.
@@ -58,7 +58,8 @@ write_feather(Y_te, paste0(output.wd,"/data/Y_te.feather"))
 # --- Model fit
 source_python(paste0(input.wd,"/03b_model_fit.py"))
 m0 <- mbtr_fit(path=input.wd, loss_type='mse', 
-               learning_rate=0.1, min_leaf=10, lambda_weights=0.1)
+               learning_rate=0.1, min_leaf=3, 
+               lambda_weights=0.0001, lambda_leaves=0.0001)
 
 head(m0[[2]])
 tail(m0[[2]])
@@ -80,6 +81,7 @@ lines(Y_te[,3], col = "green", lty = "dotted", lwd=2)
 lines(m0[[2]][,1], col = "red")
 lines(m0[[2]][,2], col = "blue")
 lines(m0[[2]][,3], col = "green")
+
 
 
 # --- END
