@@ -4,6 +4,15 @@
 #' The MBTR model is run from python via the reticulate package
 #' See MBTR_installation.Rmd for more information on the custom loss function that
 #' was implemented
+#' 
+#' TO DO LIST :
+#' - automatically save the 5 fold models from the best_hp to be able to 
+#' evaluate the standard deviation in script 04 and project standard deviation
+#' in script 05 :: DONE
+#' - cleanup the .feather that are save or not to speed up the process and
+#' limit the RAM used
+#' - cleanup the parameters and the .feather loaded in the MBTR_functions
+#' - put all the script into a function
 
 input.wd <- "~/workspace/bluecloud descriptor"
 output.wd <- "~/workspace/bluecloud descriptor"
@@ -45,12 +54,14 @@ Y <- as.data.frame(Y0[-ID_te,])
 N <- nrow(X)
 
 # ======================= 1. HYPERPARAMETER SEARCH =============================
-hp_sample <- sample(seq(1,nrow(HYPERPARAMETERS)), 10)
+hp_sample <- sample(seq(1,nrow(HYPERPARAMETERS)), 30)
 for (hp in hp_sample){
   cat(paste("---", Sys.time(), "computing combination", hp, "/", nrow(HYPERPARAMETERS), "--- \n",
             "   lr =", HYPERPARAMETERS$LEARNING_RATE[hp], "lw =", 
             HYPERPARAMETERS$LAMBDA_WEIGHTS[hp], "l_leaf =",
             HYPERPARAMETERS$LAMBDA_LEAVES[hp], "\n"))
+  
+  m <- list()
   
   for (cv in 1:N_fold){
     # --- Train and validation datasets
@@ -75,6 +86,8 @@ for (hp in hp_sample){
                    lambda_weights=HYPERPARAMETERS$LAMBDA_WEIGHTS[hp],
                    lambda_leaves=HYPERPARAMETERS$LAMBDA_LEAVES[hp])
     
+    m <- append(m, m0[[1]])
+    
     # --- Model evaluation
     if (cv == 1){
       rmse <- sqrt(mean((as.matrix(Y_val) - as.matrix(m0[[2]]))^2))
@@ -84,11 +97,14 @@ for (hp in hp_sample){
   } # cv k-fold cross validation loop
   HYPERPARAMETERS$RMSE_mean[hp] <- mean(rmse)
   HYPERPARAMETERS$RMSE_sd[hp] <- sd(rmse)
+  
+  if(HYPERPARAMETERS$RMSE_mean[hp] < min(HYPERPARAMETERS$RMSE_mean[-hp], na.rm = TRUE)){
+    best_m <- m
+  }
 } # hp hyperparameter loop
 
-# ======================= 2. HYPERPARAMETER EVALUATION =========================
-
-best_hp <- HYPERPARAMETERS[which(HYPERPARAMETERS$RMSE_mean==min(HYPERPARAMETERS$RMSE_mean, na.rm = TRUE)),]
+py_save_object(best_m, "m", pickle = "pickle")
+write_feather(HYPERPARAMETERS, paste0(output.wd,"/data/HYPERPARAMETERS.feather"))
 
 
 

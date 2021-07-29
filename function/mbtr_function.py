@@ -20,7 +20,7 @@ min_leaf=100, lambda_weights=0.1, lambda_leaves=0.1, alphas=None, n_harmonics=No
   m = MBT(loss_type = loss_type, n_boosts=n_boosts, learning_rate=learning_rate, 
   min_leaf=min_leaf,lambda_weights=lambda_weights, lambda_leaves=lambda_leaves,
   verbose = 0, alphas=alphas, n_harmonics=n_harmonics, 
-  early_stopping_rounds=3).fit(X_tr, Y_tr, x_lr=x_lr, do_plot=True)
+  early_stopping_rounds=1000).fit(X_tr, Y_tr, x_lr=x_lr, do_plot=True)
   
   X_val = read_feather(path+"/data/X_val.feather").to_numpy()
   
@@ -63,5 +63,24 @@ min_leaf=100, lambda_weights=0.1, lambda_leaves=0.1, alphas=None, n_harmonics=No
   
   return m, y_hat
 
+
+def mbtr_predict(model, X_pred):
+
+  """
+  Function to fit a MBTR model according to the train and test datasets generated
+  by the 03_model.R script.
+  A custom loss function still needs to be implemented in the losses.py script
+  of the mbtr module.
+  """
+
+  import numpy as np
+  import mbtr.utils as ut
+  from mbtr.mbtr import MBT
+  from mbtr.utils import set_figure
+  
+  X_pred = X_pred.to_numpy()
+  y_hat = model.predict(X_pred)
+  
+  return y_hat
   
   

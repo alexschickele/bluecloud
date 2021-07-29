@@ -2,11 +2,11 @@
 #' Here we build the dataset of environmental variables using the World Ocean
 #' Atlas data. The variables to be defined are VAR and DEPTH.
 #' 
-#' Possible updates :
-#' - put the whole script inside a function
+#' TO DO LIST :
 #' - add the possibility of having the layer following the bottom
 #' - create the X matrix by loading tara ocean depth and coordinates : after
 #' the zoom with Pavla D.
+#' - add primary production data as well as potential data from Emile & Sakina
 #' 
 #' @param input.wd path to the World Ocean Atlas clone on the complex server
 #' @param output.wd path to the bluecloud descriptor file

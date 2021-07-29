@@ -8,4 +8,5 @@
 *.grd
 *.gri
 *.nc
-.Rproj.user
+*.Rproj.user
+*/data*
