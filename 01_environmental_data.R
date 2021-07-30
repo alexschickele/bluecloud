@@ -84,7 +84,7 @@ env_data <- function(input.wd="~/complex/share/WOA/DATA",
   r_env <- flip(r_env, direction = 'y')
   
   # --- Saving resulting raster
-  writeRaster(r_env, paste0(output.wd,"/data/baseline"), overwrite = TRUE)
+  writeRaster(r_env, paste0(output.wd,"/data/features"), overwrite = TRUE)
   plot(r_env)
   
 }
