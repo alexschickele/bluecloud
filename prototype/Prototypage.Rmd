@@ -1,0 +1,26 @@
+---
+title: "Prototypage"
+author: "aschickele"
+date: "02/08/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+val_id <- seq(1:8)
+```
+
+
+```{python}
+import numpy as np
+from pandas import read_feather
+path="~/workspace/bluecloud descriptor"
+
+x = read_feather(path+"/data/X.feather").to_numpy()
+x_val, x_tr = [x[val_id,], np.delete(x,val_id,0)]
+
+```
+

@@ -1,4 +1,37 @@
 
+# Testing fold validation for mtbr function
+
+import numpy as np
+from pandas import read_feather
+path="~/workspace/bluecloud descriptor"
+x = read_feather(path+"/data/X.feather").to_numpy()
+y = read_feather(path+"/data/Y.feather").to_numpy()
+n_val=5
+x_lr=None
+
+x=np.linspace(1,100, 100, dtype = int)
+y=np.linspace(1,100, 100, dtype = int)
+id=np.linspace(1,20, 20, dtype = int)
+
+id=None
+if (id is not None):
+  print('hi')
+  
+x_tr, x_val = [x[:-id],x[-id:]]
+
+randidx = np.random.permutation(x.shape[0])
+n_val = int(0.2*x.shape[0])
+tr_idx, val_idx = [randidx[:-n_val],randidx[-n_val:]]
+x_tr, x_val = [x[tr_idx],x[val_idx]]
+y_tr, y_val = [y[tr_idx], y[val_idx]]
+x_lr_tr, x_lr_val = [x_lr[tr_idx], x_lr[val_idx]]
+
+x = read_feather(path+"/data/X.feather").to_numpy()
+id = np.linspace(1,20, 20, dtype = int)-1
+x_val, x_tr = [x[id,], np.delete(x,id,0)]
+
+
+
 def gbdtmo_fit(path)
 
   """

@@ -13,6 +13,11 @@
 #' limit the RAM used
 #' - cleanup the parameters and the .feather loaded in the MBTR_functions
 #' - put all the script into a function
+#' 
+#' /!\ CHANGING THE SCRIPT TO MATCH THE NEW CROSS VALIDATION PROCEDURE
+
+ls()
+rm(list=ls())
 
 input.wd <- "~/workspace/bluecloud descriptor"
 output.wd <- "~/workspace/bluecloud descriptor"
@@ -28,16 +33,43 @@ source_python(paste0(input.wd,"/function/mbtr_function.py"))
 # --- Load data
 X0 <- read_feather(paste0(input.wd,"/data/X.feather"))
 Y0 <- read_feather(paste0(input.wd,"/data/Y.feather"))
+N <- nrow(X0)
 
 # --- Defining HYPERPARAMETERS
-HYPERPARAMETERS <- expand.grid(LEARNING_RATE = c(0.01, 0.03, 0.06, 0.1, 0.15, 0.2),
-                               LAMBDA_WEIGHTS = c(1e-5, 1e-4, 1e-3, 1e-2, 1e-1),
-                               LAMBDA_LEAVES = c(1e-5, 1e-4, 1e-3, 1e-2, 1e-1),
-                               RMSE_mean = NA,
-                               RMSE_sd = NA)
+HYPERPARAMETERS <- data.frame(LEARNING_RATE = c(10e-1, 10e-2, 10e-3, 10e-4, 10e-5),
+                              N_Q = c(5,10,20,50,100),
+                              MEAN_LEAF = c(5,10,20,50,100))
+NBOOST <- 10e4
 
 # --- Parameters
-N_fold <- 5
+N_FOLD <- 5
+
+
+
+# --- SIMPLE TEST
+# There is no warm start so we will redo models with more boosting rount everytime
+x_tr <- X0[1:20,]
+y_tr <- Y0[1:20,]
+
+write_feather(x_tr, paste0(output.wd,"/data/x_tr.feather"))
+write_feather(y_tr, paste0(output.wd,"/data/y_tr.feather"))
+
+x_val <- X0[21:28,]
+y_val <- Y0[21:28,]
+
+write_feather(x_val, paste0(output.wd,"/data/x_val.feather"))
+write_feather(y_val, paste0(output.wd,"/data/y_val.feather"))
+
+m0 <- mbtr_fit(path=input.wd,
+               n_boosts = as.integer(10),
+               min_leaf= 5, 
+               learning_rate=10e-2,
+               lambda_weights=0.0001,
+               lambda_leaves=0.0001,
+               n_q= as.integer(10),
+               val_path = '~/workspace/bluecloud descriptor/data')
+
+plot(unlist(m0[[2]]))
 
 # --- Excluding TEST DATASET
 # Used for final model testing, once the hyperparameters are selected
