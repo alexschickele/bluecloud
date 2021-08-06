@@ -32,8 +32,8 @@ Y0 <- data.frame(y1, y2, y3)
 
 # --- Inducing noise in the abundance values at several station
 # Random amplitude change
-noise <- rnorm(N,1,0.2)
-Y0 <- Y0*noise
+noise <- rnorm(N,0.2,0.2)
+Y0 <- Y0+noise
 
 # Station 1 to 50 have a +2 biais
 # Y0[1:50,] <- Y0[1:50,]+2
@@ -52,7 +52,7 @@ rel_abs <- function(x) {
 Y <- data.frame(t(apply(Y0,1, rel_abs))) # YES
 
 plot(Y[,1], type = 'l', ylim = c(0,max(Y)), main = "Y", col = "red")
-lines(Y[,2], col = "blue")
+lines(Y[,2], col = "yellow")
 lines(Y[,3], col = "green")
 
 # --- Standardizing feature data ? ---

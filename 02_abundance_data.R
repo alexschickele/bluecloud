@@ -1,4 +1,3 @@
-
 #' Here we build the relative abundance dataset with the TARA OCEAN data
 #' The output are
 #' 1. A relative abundance datasset : Ytargets * Nobs
@@ -43,6 +42,49 @@ for (i in 1:nrow(data)){
 # --- Save
 write_feather(data, path = paste0(output.wd,"/data/target_raw.feather"))
 
+# ================================== PART 2 ====================================
+# Summary of the data
+
+ls()
+rm(list=ls())
+
+input.wd <- "~/workspace/bluecloud descriptor"
+output.wd <- "~/workspace/bluecloud descriptor"
+
+# --- Loading R packages
+library(feather)
+
+# --- Parameters
+MIN.GENE <- 3
+MIN.STATION <- 3
+
+# --- Load data
+target0 <- read_feather(path = paste0(input.wd,"/data/target_raw.feather"))
+target0$PfamName[is.na(target0$PfamName)] <- "Unknown"
+
+# --- Building data summary
+Y_summary <- data.frame(PfamName=character(),
+                        filter=character(),
+                        depth=character(),
+                        nb.geneID=integer(),
+                        nb.station=integer())
+
+for(p in levels(as.factor(target0$PfamName))){
+  for(f in levels(as.factor(target0$filter))){
+    for(d in levels(as.factor(target0$depth))){
+      tmp <- target0[which(target0$PfamName==p & target0$filter==f & target0$depth==d),]
+      nb.gene <- length(unique(tmp$geneID))
+      nb.station <- length(unique(tmp$station))
+      
+      if(nb.gene>MIN.GENE & nb.station>MIN.STATION){
+        Y_summary[nrow(Y_summary)+1,] <- list(p,f,d,nb.gene,nb.station)
+      }
+    } # depth
+  } # filter
+} # prot family name
+
+print(Y_summary)
+
 # ================================== PART 3 ====================================
 # Selecting which protein family to model and build the X and Y dataset from
 
@@ -57,18 +99,18 @@ library(feather)
 library(raster)
 
 # --- Parameters ---
-DEPTH <- NULL
-FILTER <- NULL
-PFAM <- NULL
+DEPTH <- "SUR"
+FILTER <- "QQSS"
+PFAM <- "Abhydrolase_3"
 
 # --- Load data
 target0 <- read_feather(path = paste0(input.wd,"/data/target_raw.feather"))
+target0$PfamName[is.na(target0$PfamName)] <- "Unknown"
 feature0 <- stack(paste0(input.wd,"/data/features"))
 
 # --- Selecting subset of the target0 data
 # TO DO with the final dataset from Pavla, for now i test on unknown surface and ssuu
-
-target1 <- target0[which(target0$PfamName=="Abhydrolase_3" & target0$depth=="SUR" & target0$filter=="SSUU"),]
+target1 <- target0[which(target0$PfamName==PFAM & target0$depth==DEPTH & target0$filter==FILTER),]
 
 # --- Building Y
 obs <- unique(target1$station)
@@ -99,5 +141,4 @@ X <- X[-out,]
 write_feather(X, path = paste0(output.wd,"/data/X.feather"))
 write_feather(Y, path = paste0(output.wd,"/data/Y.feather"))
 
-
-
+# --- END

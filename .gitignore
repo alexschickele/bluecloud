@@ -10,4 +10,6 @@
 *.nc
 *.Rproj.user
 */data*
+*.Rproj.user
+*.p
 .Rproj.user

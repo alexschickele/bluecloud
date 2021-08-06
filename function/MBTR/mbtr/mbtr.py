@@ -534,9 +534,9 @@ class MBT:
 
     def _validation_split(self,x,y,x_lr):
         if self.val_path is not None:
-            x_val = read_feather(self.val_path+'/x_val.feather').to_numpy()
-            y_val = read_feather(self.val_path+'/y_val.feather').to_numpy()
-            x_lr_val = read_feather(self.val_path+'/x_lr_val.feather').to_numpy() if x_lr is not None else None
+            x_val = read_feather(self.val_path+'/X_val.feather').to_numpy()
+            y_val = read_feather(self.val_path+'/Y_val.feather').to_numpy()
+            x_lr_val = read_feather(self.val_path+'/X_lr_val.feather').to_numpy() if x_lr is not None else None
             x_tr, x_val = [x, x_val]
             y_tr, y_val = [y, y_val]
             x_lr_tr, x_lr_val = [x, x_lr_val] if x_lr is not None else [None, None]
