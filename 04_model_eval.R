@@ -1,7 +1,5 @@
 #' TO DO LIST
-#' - code accuracy metric
 #' - put script in function
-
 
 ls()
 rm(list=ls())
@@ -12,6 +10,7 @@ output.wd <- "~/workspace/bluecloud descriptor"
 # --- Loading R packages
 library(reticulate)
 library(feather)
+library(mvrsquared)
 
 # --- Custom functions
 source_python(paste0(input.wd,"/function/mbtr_function.py"))
@@ -25,7 +24,7 @@ HYPERPARAMETERS <- read_feather(paste0(output.wd,"/data/HYPERPARAMETERS.feather"
 
 # --- Parameters
 N_FOLD <- 3
-hp <- 1
+hp <- 3
 
 # --- Plotting relative abundance
 pal <- brewer.pal(ncol(Y0), "Spectral")
@@ -46,6 +45,18 @@ for(cv in 1:N_FOLD){
 legend(x=nrow(y_hat)-0.1*nrow(y_hat), 1, legend = seq(1:ncol(y_hat)),
        fill = brewer.pal(ncol(y_hat), "Spectral"),
        title = "tar. nb. :", border="white", box.col = "white")
+
+# --- Calculating accuracy metric
+accurracy <- NULL
+
+for(cv in 1:N_FOLD){
+  m0 <- m[[(hp-1)*N_FOLD+cv]][[1]]
+  y_hat <- mbtr_predict(m0, X0)
+  
+  accurracy <- c(accurracy,calc_rsquared(as.matrix(Y0), y_hat)*100)
+}
+
+cat(paste("--- model multidimensional accurracy (R2) is :", round(mean(accurracy),2), "+/-", round(sd(accurracy),2), "% --- \n"))
 
 # --- Calculating variable importance
 var_count <- matrix(0, ncol = ncol(X0), nrow=N_FOLD)
@@ -80,9 +91,5 @@ abline(h=(seq(0,100,20)), lty="dotted", col="white")
 legend(x=ncol(X0)-0.2*ncol(X0), 100, legend = colnames(X0),
        fill = brewer.pal(ncol(X0), "Spectral"),
        title = "variables :", border="white", box.col = "white")
-
-# --- Calculating accuracy metric
-
-
 
 # END

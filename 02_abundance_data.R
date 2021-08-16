@@ -100,8 +100,8 @@ library(raster)
 
 # --- Parameters ---
 DEPTH <- "SUR"
-FILTER <- "QQSS"
-PFAM <- "Abhydrolase_3"
+FILTER <- "SSUU"
+PFAM <- "Unknown"
 
 # --- Load data
 target0 <- read_feather(path = paste0(input.wd,"/data/target_raw.feather"))
