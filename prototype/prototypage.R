@@ -1,3 +1,43 @@
+
+setMethod("plot", "zzplot", function(x){
+  barplot(x)
+})
+
+
+# RASTER TEST
+# Proof for JO, to keep !!!
+
+library(raster)
+library(RColorBrewer)
+source(file = paste0(input.wd,"/function/bivarRasterPlot.R"))
+
+r1 <- raster(matrix(rep(seq(1:10),10), 10, 10))
+r2 <- raster(matrix(rep(seq(1:10),each = 10), 10, 10))
+
+col_matrix <- colmat(pal = brewer.pal(5, "RdYlBu"),
+                     saturation = 0,
+                     xlab = "Standard deviation",
+                     ylab = "Relative Abundance")
+
+par(mfrow=c(2,2))
+plot(r1, main="SD", col = brewer.pal(5, "Greys"))
+plot(r2, main="Mean", col = brewer.pal(5, "RdYlBu"))
+colmat_plot(col_matrix,
+            xlab = "Standard deviation ->",
+            ylab = "Relative Abundance ->")
+
+proj <- bivar_map(rasterx = r1,
+                  rastery = r2,
+                  colormatrix = col_matrix,
+                  cutx = seq(0,5,1),
+                  cuty = seq(0,10,2))
+
+plot(proj[[1]], col = proj[[2]])
+
+
+
+# PARALLEL PROTOTYPING ======================
+
 ls()
 rm(list=ls())
 

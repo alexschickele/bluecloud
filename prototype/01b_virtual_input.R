@@ -24,15 +24,15 @@ X <- data.frame(temperature, bathymetry, salinity, range, pp)
 # X <- data.frame(temperature)
 
 # --- Generating virtual abundance targets
-y1<- seq(0,5,length.out =  N)
-y2<- seq(0,1,length.out =  N)
-y3<- seq(1,2,length.out =  N)
+y1<- seq(0,0.8,length.out =  N)
+y2<- seq(0,0.2,length.out =  N)
+y3<- seq(1,0,length.out =  N)
 
 Y0 <- data.frame(y1, y2, y3)
 
 # --- Inducing noise in the abundance values at several station
 # Random amplitude change
-noise <- rnorm(N,0.2,0.2)
+noise <- rnorm(N,0.2,0.02)
 Y0 <- Y0+noise
 
 # Station 1 to 50 have a +2 biais

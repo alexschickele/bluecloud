@@ -1,30 +1,14 @@
 #' TO DO LIST
 #' - put script in function
 
-ls()
-rm(list=ls())
-
-input.wd <- "~/workspace/bluecloud descriptor"
-output.wd <- "~/workspace/bluecloud descriptor"
-
-# --- Loading R packages
-library(reticulate)
-library(feather)
-library(mvrsquared)
-
-# --- Custom functions
-source_python(paste0(input.wd,"/function/mbtr_function.py"))
+source(file = "/home/aschickele/workspace/bluecloud descriptor/00_config.R")
 
 # --- Loading data
-setwd(paste0(output.wd,"/data/"))
+setwd(paste0(bluecloud.wd,"/data/"))
 m <- py_load_object("m", pickle = "pickle")
-Y0 <- as.data.frame(read_feather(paste0(input.wd,"/data/Y.feather")))
-X0 <- as.data.frame(read_feather(paste0(input.wd,"/data/X.feather")))
-HYPERPARAMETERS <- read_feather(paste0(output.wd,"/data/HYPERPARAMETERS.feather"))
-
-# --- Parameters
-N_FOLD <- 3
-hp <- 3
+Y0 <- as.data.frame(read_feather(paste0(bluecloud.wd,"/data/Y.feather")))
+X0 <- as.data.frame(read_feather(paste0(bluecloud.wd,"/data/X.feather")))
+HYPERPARAMETERS <- read_feather(paste0(bluecloud.wd,"/data/HYPERPARAMETERS.feather"))
 
 # --- Plotting relative abundance
 pal <- brewer.pal(ncol(Y0), "Spectral")

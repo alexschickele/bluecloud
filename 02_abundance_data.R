@@ -14,18 +14,11 @@
 # Building raw dataset from MATOU and the Tara Ocean locations
 # - Should not be necessary with the final data from Pavla
 
-ls()
-rm(list=ls())
-
-input.wd <- "~/complex/data"
-output.wd <- "~/workspace/bluecloud descriptor"
-
-# --- Loading R packages
-library(feather)
+source(file = "/home/aschickele/workspace/bluecloud descriptor/00_config.R")
 
 # --- Loading data
-lonlat <- read.csv(paste0(input.wd,"/SMAGs_Env.csv"), sep=';', header = TRUE)
-data <- read_feather(paste0(input.wd,"/FF_metaG_Unknown_annot_subset.feather"))
+lonlat <- read.csv(paste0(data.wd,"/data/SMAGs_Env.csv"), sep=';', header = TRUE)
+data <- read_feather(paste0(data.wd,"/data/FF_metaG_Unknown_annot_subset.feather"))
 
 # --- Linking station number with longitude and latitude
 get_station <- function(x){substr(x = x, start = 6, stop = nchar(x)-4)}
@@ -40,26 +33,15 @@ for (i in 1:nrow(data)){
 }
 
 # --- Save
-write_feather(data, path = paste0(output.wd,"/data/target_raw.feather"))
+write_feather(data, path = paste0(bluecloud.wd,"/data/target_raw.feather"))
 
 # ================================== PART 2 ====================================
 # Summary of the data
 
-ls()
-rm(list=ls())
-
-input.wd <- "~/workspace/bluecloud descriptor"
-output.wd <- "~/workspace/bluecloud descriptor"
-
-# --- Loading R packages
-library(feather)
-
-# --- Parameters
-MIN.GENE <- 3
-MIN.STATION <- 3
+source(file = "/home/aschickele/workspace/bluecloud descriptor/00_config.R")
 
 # --- Load data
-target0 <- read_feather(path = paste0(input.wd,"/data/target_raw.feather"))
+target0 <- read_feather(path = paste0(bluecloud.wd,"/data/target_raw.feather"))
 target0$PfamName[is.na(target0$PfamName)] <- "Unknown"
 
 # --- Building data summary
@@ -88,25 +70,12 @@ print(Y_summary)
 # ================================== PART 3 ====================================
 # Selecting which protein family to model and build the X and Y dataset from
 
-ls()
-rm(list=ls())
-
-input.wd <- "~/workspace/bluecloud descriptor"
-output.wd <- "~/workspace/bluecloud descriptor"
-
-# --- Loading R packages
-library(feather)
-library(raster)
-
-# --- Parameters ---
-DEPTH <- "SUR"
-FILTER <- "SSUU"
-PFAM <- "Unknown"
+source(file = "/home/aschickele/workspace/bluecloud descriptor/00_config.R")
 
 # --- Load data
-target0 <- read_feather(path = paste0(input.wd,"/data/target_raw.feather"))
+target0 <- read_feather(path = paste0(bluecloud.wd,"/data/target_raw.feather"))
 target0$PfamName[is.na(target0$PfamName)] <- "Unknown"
-feature0 <- stack(paste0(input.wd,"/data/features"))
+feature0 <- stack(paste0(bluecloud.wd,"/data/features"))
 
 # --- Selecting subset of the target0 data
 # TO DO with the final dataset from Pavla, for now i test on unknown surface and ssuu
@@ -127,7 +96,6 @@ for (i in 1:length(obs)){
 }
 
 Y <- as.data.frame(Y0/apply(Y0, 1, sum))
-write_feather(Y, path = paste0(output.wd,"/data/Y.feather"))
 
 # --- Building X
 obs_xy <- unique(data.frame(obs=target1$station, x=target1$lon, y=target1$lat))
@@ -138,7 +106,7 @@ out <- which(is.na(X[,1]))
 Y <- Y[-out,]
 X <- X[-out,]
 
-write_feather(X, path = paste0(output.wd,"/data/X.feather"))
-write_feather(Y, path = paste0(output.wd,"/data/Y.feather"))
+write_feather(X, path = paste0(bluecloud.wd,"/data/X.feather"))
+write_feather(Y, path = paste0(bluecloud.wd,"/data/Y.feather"))
 
 # --- END
