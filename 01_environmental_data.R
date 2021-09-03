@@ -22,9 +22,13 @@
 source(file = "/home/aschickele/workspace/bluecloud descriptor/00_config.R")
 
 # --- Initializing some parameters
-VAR <- list.files(input.wd)
+VAR <- list.files(paste0(data.wd,"/share/WOA/DATA"))
 var_names <- VAR # initializing names for the future list actually available
 env_raw <- NULL # for storing all env variable values
+
+if(DEPTH == "SUR"){
+  DEPTH <- data.frame(top = 0, bottom = 30)
+}
 
 # --- Loading environmental variables
 for(i in 1: length(VAR)){

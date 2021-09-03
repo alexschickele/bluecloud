@@ -8,46 +8,51 @@ setwd(paste0(bluecloud.wd,"/data/"))
 m <- py_load_object("m", pickle = "pickle")
 Y0 <- as.data.frame(read_feather(paste0(bluecloud.wd,"/data/Y.feather")))
 X0 <- as.data.frame(read_feather(paste0(bluecloud.wd,"/data/X.feather")))
-HYPERPARAMETERS <- read_feather(paste0(bluecloud.wd,"/data/HYPERPARAMETERS.feather"))
 
-# --- Plotting relative abundance
+# --- Initializing outputs
+r2 <- NULL
+mse <- NULL
 pal <- brewer.pal(ncol(Y0), "Spectral")
+par(bg="black", col="white", col.axis = "white", col.lab="white",col.main="white",
+    mfrow =c(ceiling(N_FOLD^0.5),ceiling(N_FOLD^0.5)), mar = c(2,5,2,1))
 
-par(bg="black", col="white", col.axis = "white", col.lab="white",col.main="white")
-plot(Y0[,1], type='l', ylim = c(0,1), ylab = "relative abundance", xlab = "obs", col="black")
+# --- Evaluating model and plotting relative abundance
 for(cv in 1:N_FOLD){
-  m0 <- m[[(hp-1)*N_FOLD+cv]][[1]]
-  y_hat <- mbtr_predict(m0, X0)
+  # --- Loading test data and models
+  X_val <- as.data.frame(read_feather(paste0(bluecloud.wd,"/data/", cv, "_X_val.feather")))
+  Y_val <- as.data.frame(read_feather(paste0(bluecloud.wd,"/data/", cv, "_Y_val.feather")))
+  m0 <- m[[cv]][[1]]
   
-  for(i in 1:ncol(Y0)){
+  # --- Do predictions on test set
+  y_hat <- mbtr_predict(m0, X_val)
+  
+  # --- Evaluate model
+  r2 <- c(r2,calc_rsquared(as.matrix(Y_val), y_hat))
+  se <- (Y_val-y_hat)^2
+  mse <- c(mse, mean(as.matrix(se), na.rm=TRUE))
+
+  # --- Plot prediction against test set
+  plot(Y_val[,1], type='l', ylim = c(0,1), ylab = "relative abundance", xlab = "obs", col="black",
+       main = paste("fold n°", cv))
+  for(i in 1:ncol(Y_val)){
     lines(y_hat[,i], col=pal[i], lwd=1)
-    lines(Y0[,i], lty="dotted", col=pal[i], lwd=2)
-    
+    lines(Y_val[,i], lty="dotted", col=pal[i], lwd=2)
   } # i target
+  legend(x=nrow(y_hat)-0.2*nrow(y_hat), 1, legend = seq(1:ncol(y_hat)),
+         fill = brewer.pal(ncol(y_hat), "Spectral"),
+         title = "tar. nb. :", border="white", box.col = "white")
 } # k-fold cv  loop
 
-legend(x=nrow(y_hat)-0.1*nrow(y_hat), 1, legend = seq(1:ncol(y_hat)),
-       fill = brewer.pal(ncol(y_hat), "Spectral"),
-       title = "tar. nb. :", border="white", box.col = "white")
-
-# --- Calculating accuracy metric
-accurracy <- NULL
-
-for(cv in 1:N_FOLD){
-  m0 <- m[[(hp-1)*N_FOLD+cv]][[1]]
-  y_hat <- mbtr_predict(m0, X0)
-  
-  accurracy <- c(accurracy,calc_rsquared(as.matrix(Y0), y_hat)*100)
-}
-
-cat(paste("--- model multidimensional accurracy (R2) is :", round(mean(accurracy),2), "+/-", round(sd(accurracy),2), "% --- \n"))
+cat(paste("--- model multidimensional R-squarred is :", round(mean(r2),2), "+/-", round(sd(r2),2), "--- \n"))
+cat(paste("--- model multidimensional MSE is :", round(mean(mse),2), "+/-", round(sd(mse),2), "--- \n"))
+cat(paste("--- model multidimensional RMSE is :", round(mean(sqrt(mse)),2), "+/-", round(sd(sqrt(mse)),2), "--- \n"))
 
 # --- Calculating variable importance
 var_count <- matrix(0, ncol = ncol(X0), nrow=N_FOLD)
 colnames(var_count) <- colnames(X0)
 
 for(cv in 1:N_FOLD){
-  m0 <- m[[(hp-1)*N_FOLD+cv]][[1]]
+  m0 <- m[[cv]][[1]]
   n_tree <- length(m0$trees)
   
   for(t in 1:n_tree){

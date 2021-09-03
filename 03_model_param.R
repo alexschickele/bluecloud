@@ -7,10 +7,12 @@
 #' - put all the script into a function
 #' - check in mbtr_function.py why the loss does not increase after a while...
 
+dev.off()
 source(file = "/home/aschickele/workspace/bluecloud descriptor/00_config.R")
 
 # --- Custom functions
 kfold <- function(x,n) split(x, cut(seq_along(x), n, labels = FALSE))
+ma <- function(x, n = 10){stats::filter(x, rep(1 / n, n), sides = 2)}
 
 # --- Load data
 X0 <- read_feather(paste0(bluecloud.wd,"/data/X.feather"))
@@ -55,25 +57,6 @@ m <- mcmapply(FUN=mbtr_fit,
               USE.NAMES = FALSE,
               mc.cores = min(c(MAX_CLUSTER, N_FOLD*nrow(HYPERPARAMETERS))))
 
-# --- Load models from Python and save in one object
-m <- list()
-for (hp in 1:nrow(HYPERPARAMETERS)){
-  for(cv in 1:N_FOLD){
-    m0 <- py_load_object(paste0(bluecloud.wd,"/data/",cv,"_",hp,"_m"), pickle = "pickle")
-    m <- append(m, list(m0))
-  } #cv loop
-} #hp loop
-
-py_save_object(m, paste0(bluecloud.wd,"/data/m"), pickle = "pickle")
-write_feather(HYPERPARAMETERS, paste0(bluecloud.wd,"/data/HYPERPARAMETERS.feather"))
-
-# --- Remove temporary files
-data_file <- list.files(paste0(bluecloud.wd,"/data/"))
-for(cv in 1:N_FOLD){
-  rem_file <- data_file[grep(paste0(cv,"_"), data_file)]
-  file.remove(rem_file)
-}
-
 # --- Plotting results
 pal <- rep(brewer.pal(nrow(HYPERPARAMETERS), "Spectral"), each = N_FOLD)
 
@@ -86,8 +69,48 @@ for (hp in 1:nrow(HYPERPARAMETERS)){
           col = pal[(hp-1)*N_FOLD+cv])
   } # k-fold cv loop
 } # hp hyperparameter loop
+grid(lwd = 2)
+abline(h = seq(0,10,0.5), v = seq(0,NBOOST, NBOOST/20), lty = "dotted")
 legend(x=NBOOST-0.1*NBOOST, 10, legend = seq(1:nrow(HYPERPARAMETERS)),
        fill = brewer.pal(nrow(HYPERPARAMETERS), "Spectral"),
        title = "hyp. nb. :")
+
+# --- Detect minimum loss and save corresponding model in one object
+losses <- lapply(m, function(x) {x[[2]]})
+HYPERPARAMETERS <- cbind(HYPERPARAMETERS,
+                     min_loss = NA,
+                     n_boost = NA)
+
+for(hp in 1:nrow(HYPERPARAMETERS)){
+  extract_loss <- NULL
+  for(cv in 1:N_FOLD){
+    tmp <- c(unlist(losses[[(hp-1)*N_FOLD+cv]]), rep(NA, NBOOST-length(losses[[(hp-1)*N_FOLD+cv]])))
+    extract_loss <- cbind(extract_loss,tmp)
+    extract_loss <- apply(extract_loss, 1, mean)
+  }
+  HYPERPARAMETERS$min_loss[hp] <- min(extract_loss, na.rm = TRUE)
+  HYPERPARAMETERS$n_boost[hp] <- which(extract_loss==min(extract_loss, na.rm = TRUE))
+}
+
+best_hp <- which(HYPERPARAMETERS$min_loss==min(HYPERPARAMETERS$min_loss))
+mtext(text = paste("Best set of hyperparameters =", best_hp), side = 3)
+
+# --- Reload best_hp models from python because of "previous session invalidity"
+best_m <- list()
+for(cv in 1:N_FOLD){
+  m0 <- py_load_object(paste0(bluecloud.wd,"/data/",cv,"_",best_hp,"_m"), pickle = "pickle")
+  best_m <- append(best_m, list(m0))
+} #cv loop
+
+# --- Save only the best models
+write_feather(HYPERPARAMETERS[best_hp,], paste0(bluecloud.wd,"/data/HYPERPARAMETERS.feather"))
+py_save_object(best_m, paste0(bluecloud.wd,"/data/m"), pickle = "pickle")
+
+# --- Remove temporary files
+data_file <- list.files(paste0(bluecloud.wd,"/data/"))
+for(hp in 1:nrow(HYPERPARAMETERS)){
+  rem_file <- data_file[grep(paste0("_",hp,"_"), data_file)]
+  file.remove(rem_file)
+}
 
 # --- END

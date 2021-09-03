@@ -35,14 +35,12 @@ PFAM <- "Abhydrolase_3" # selected protein family
 
 # --- Model specific parameters
 # Hyperparameters to test in the model
-HYPERPARAMETERS <- data.frame(LEARNING_RATE = c(1e-1, 3e-2,1e-2, 1e-3),
-                              N_Q = c(5, 5, 5, 5),
-                              MEAN_LEAF = c(5, 5, 5, 5))
+HYPERPARAMETERS <- data.frame(LEARNING_RATE = c(3e-3, 6e-3, 1e-2, 3e-2),
+                              N_Q = c(100, 100, 50, 50),
+                              MEAN_LEAF = c(10, 10, 10, 10))
 
 NBOOST <- 1000 # maximum number of boosting rounds
 N_FOLD <- 3 # number of k-fold cross validation runs
-MAX_CLUSTER <- 12 # maximum number of clusters for parallel computing
-
-hp <- 2 # selected hyperparameters for evaluation and predictions
+MAX_CLUSTER <- 24 # maximum number of clusters for parallel computing
 
 # --- END

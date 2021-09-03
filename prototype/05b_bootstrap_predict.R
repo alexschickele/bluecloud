@@ -9,16 +9,49 @@
 #' - put inside a function
 
 source(file = "/home/aschickele/workspace/bluecloud descriptor/00_config.R")
+NBOOTSTRAP <- 5
+HYPERPARAMETERS <- read_feather(paste0(bluecloud.wd,"/data/HYPERPARAMETERS.feather"))
 
 # --- Load files
-m <- py_load_object("m", pickle = "pickle")
 features <- stack(paste0(bluecloud.wd,"/data/features"))
+Y0 <- as.data.frame(read_feather(paste0(bluecloud.wd,"/data/Y.feather")))
+X0 <- as.data.frame(read_feather(paste0(bluecloud.wd,"/data/X.feather")))
+N <- nrow(X0)
 
 # --- Build X_pred from raster
 X <- as.data.frame(getValues(features))
 
+# --- Train model on all data
+for(b in 1:NBOOTSTRAP){
+  id <- sample(seq(1:nrow(X0)), replace = TRUE)
+  X_tr <- X0[id,]
+  Y_tr <- Y0[id,]
+  
+  write_feather(X_tr, paste0(bluecloud.wd,"/data/",b,"_X_tr.feather"))
+  write_feather(Y_tr, paste0(bluecloud.wd,"/data/",b,"_Y_tr.feather"))
+  
+} # bootstrap loop
+b <- 1:NBOOTSTRAP
+m <- mcmapply(FUN=mbtr_fit, 
+              path=paste0(bluecloud.wd, "/data/", b),
+              hp_id = as.character(b),
+              loss_type='mse',
+              n_boosts = as.integer(HYPERPARAMETERS$n_boost),
+              min_leaf= HYPERPARAMETERS$MEAN_LEAF,
+              learning_rate=HYPERPARAMETERS$LEARNING_RATE,
+              lambda_weights=0,
+              lambda_leaves=0,
+              n_q= as.integer(HYPERPARAMETERS$N_Q),
+              val_path = NULL,
+              early_stopping_rounds = as.integer(HYPERPARAMETERS$n_boost),
+              SIMPLIFY = FALSE,
+              USE.NAMES = FALSE,
+              mc.cores = min(c(MAX_CLUSTER, NBOOTSTRAP)))
+
 # --- Predicting values
 y_hat <- NULL
+
+
 
 cat(paste("---", Sys.time(), "// Projecting maps // This may take some time --- \n"))
 for (cv in 1:N_FOLD){

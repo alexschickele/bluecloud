@@ -18,7 +18,7 @@ source(file = "/home/aschickele/workspace/bluecloud descriptor/00_config.R")
 
 # --- Loading data
 lonlat <- read.csv(paste0(data.wd,"/data/SMAGs_Env.csv"), sep=';', header = TRUE)
-data <- read_feather(paste0(data.wd,"/data/FF_metaG_Unknown_annot_subset.feather"))
+data <- read_feather(paste0(data.wd,"/data/FF_metaT_Unknown_annot_subset.feather"))
 
 # --- Linking station number with longitude and latitude
 get_station <- function(x){substr(x = x, start = 6, stop = nchar(x)-4)}
@@ -99,7 +99,7 @@ Y <- as.data.frame(Y0/apply(Y0, 1, sum))
 
 # --- Building X
 obs_xy <- unique(data.frame(obs=target1$station, x=target1$lon, y=target1$lat))
-X <- as.data.frame(extract(feature0, obs_xy[,-1]))
+X <- as.data.frame(raster::extract(feature0, obs_xy[,-1]))
 
 # --- Saving data
 out <- which(is.na(X[,1]))
