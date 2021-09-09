@@ -3,9 +3,7 @@
 #' The MBTR model is run from python via the reticulate package and the
 #' mbtr_function.py implementation
 #' 
-#' TO DO LIST :
-#' - put all the script into a function
-#' - check in mbtr_function.py why the loss does not increase after a while...
+#' TO DO:
 
 dev.off()
 source(file = "/home/aschickele/workspace/bluecloud descriptor/00_config.R")
@@ -48,8 +46,8 @@ m <- mcmapply(FUN=mbtr_fit,
               n_boosts = as.integer(NBOOST),
               min_leaf= HYPERPARAMETERS$MEAN_LEAF[hp],
               learning_rate=HYPERPARAMETERS$LEARNING_RATE[hp],
-              lambda_weights=0,
-              lambda_leaves=0,
+              lambda_weights=HYPERPARAMETERS$LEARNING_RATE[hp]/100,
+              lambda_leaves=HYPERPARAMETERS$LEARNING_RATE[hp]/100,
               n_q= as.integer(HYPERPARAMETERS$N_Q[hp]),
               val_path = paste0(bluecloud.wd,"/data/", cv),
               early_stopping_rounds = as.integer(100),
@@ -61,17 +59,18 @@ m <- mcmapply(FUN=mbtr_fit,
 pal <- rep(brewer.pal(nrow(HYPERPARAMETERS), "Spectral"), each = N_FOLD)
 
 par(bg="black", col="white", col.axis = "white", col.lab="white",col.main="white")
-plot(unlist(m[[1]][[2]]), type='l', ylim = c(0,10), xlim=c(0,NBOOST), ylab = "Loss", xlab = "Number of boost rounds")
+plot(unlist(m[[1]][[2]]), type='l', ylim = c(0,1), xlim=c(0,NBOOST), ylab = "Loss", xlab = "Number of boost rounds")
 for (hp in 1:nrow(HYPERPARAMETERS)){
   for (cv in 1:N_FOLD){
     v <- unlist(m[[(hp-1)*N_FOLD+cv]][[2]])
+    v <- v/nrow(Y_tr)
     lines(v, type='l', lwd = 2,
           col = pal[(hp-1)*N_FOLD+cv])
   } # k-fold cv loop
 } # hp hyperparameter loop
 grid(lwd = 2)
-abline(h = seq(0,10,0.5), v = seq(0,NBOOST, NBOOST/20), lty = "dotted")
-legend(x=NBOOST-0.1*NBOOST, 10, legend = seq(1:nrow(HYPERPARAMETERS)),
+abline(h = seq(0,1,0.05), v = seq(0,NBOOST, NBOOST/20), lty = "dotted")
+legend(x=NBOOST-0.1*NBOOST, 1, legend = seq(1:nrow(HYPERPARAMETERS)),
        fill = brewer.pal(nrow(HYPERPARAMETERS), "Spectral"),
        title = "hyp. nb. :")
 

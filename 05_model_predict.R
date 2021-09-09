@@ -1,16 +1,9 @@
-
-#' WARNING :
-#' - the model predicts on different environmental variables than the ones
-#' used for training. It works, therefore the maps are totally wrong... but useful
-#' to test the code !
-#' 
-#' TO DO LIST:
-#' - cleanup
-#' - put inside a function
+#' TO DO:
 
 source(file = "/home/aschickele/workspace/bluecloud descriptor/00_config.R")
 
 # --- Load files
+setwd(paste0(bluecloud.wd,"/data/"))
 m <- py_load_object("m", pickle = "pickle")
 features <- stack(paste0(bluecloud.wd,"/data/features"))
 

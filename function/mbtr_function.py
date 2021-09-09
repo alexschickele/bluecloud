@@ -1,5 +1,5 @@
 def mbtr_fit(path, hp_id, loss_type: str='mse', n_boosts: int=1000, n_q: int=10, learning_rate: float=0.1, 
-val_ratio: float=0.2, val_path: str='~/workspace/bluecloud descriptor/data/1',
+val_path = None, n_harmonics: int = 5,
 early_stopping_rounds: int= 3,
 min_leaf: int=20, lambda_weights: float=0.0001, lambda_leaves: float=0.0001):
 
@@ -49,9 +49,9 @@ min_leaf: int=20, lambda_weights: float=0.0001, lambda_leaves: float=0.0001):
           learning_rate=learning_rate, 
           min_leaf=min_leaf,
           lambda_weights=lambda_weights, lambda_leaves=lambda_leaves,
-          verbose = 0, 
-          val_ratio = val_ratio,
+          verbose = 0,
           val_path= val_path,
+          n_harmonics=n_harmonics,
           early_stopping_rounds=early_stopping_rounds).fit(X_tr, Y_tr, do_plot=True)
           
   with open(path+'_'+hp_id+'_m', 'wb') as f:

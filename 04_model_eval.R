@@ -1,5 +1,4 @@
-#' TO DO LIST
-#' - put script in function
+#' TO DO:
 
 source(file = "/home/aschickele/workspace/bluecloud descriptor/00_config.R")
 
@@ -80,5 +79,12 @@ abline(h=(seq(0,100,20)), lty="dotted", col="white")
 legend(x=ncol(X0)-0.2*ncol(X0), 100, legend = colnames(X0),
        fill = brewer.pal(ncol(X0), "Spectral"),
        title = "variables :", border="white", box.col = "white")
+
+# --- Clean up temporary files
+data_file <- list.files(paste0(bluecloud.wd,"/data/"))
+for(cv in 1:9){
+  rem_file <- data_file[grep(paste0(cv,"_"), data_file)]
+  file.remove(rem_file)
+}
 
 # END

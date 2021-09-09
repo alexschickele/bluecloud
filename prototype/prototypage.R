@@ -1,4 +1,50 @@
 
+# ============== Building target_raw dataset from Pavla real data youpi ========
+
+source(file = "/home/aschickele/workspace/bluecloud descriptor/00_config.R")
+
+# --- Loading data
+lonlat <- read.csv(paste0(data.wd,"/data/SMAGs_Env.csv"), sep=';', header = TRUE)
+data_cluster <- read_feather(paste0(data.wd,"/data/CC_PFAM_Carb_taxo_80SS.feather"))
+data_reads <- read.table(paste0(data.wd,"/data/SMAGs-v1.cds.95.mg.matrix_CARB"))
+
+data_reads <- data_reads[1:25,1:6]
+
+# --- Reshape data_reads in single entry dataframe
+data_reads <- cbind(rownames(data_reads), data_reads)
+data_reads <- reshape(data_reads, varying = list(2:ncol(data_reads)),
+                      idvar = 1, ids = rownames(data_reads), times = colnames(data_reads)[-1],
+                      direction = "long")
+
+rownames(data_reads) <- NULL
+colnames(data_reads) <- c("Genes","code","Reads")
+
+# --- Decompose code names
+station <- substr(data_reads$code, start = 2, stop = 4)
+depth <- substr(data_reads$code, start = 5, stop = 7)
+filter <- substr(data_reads$code, start = 9, stop = 12)
+
+# --- Merge all
+data <- merge(x = data_cluster, y = data_reads,
+              by = "Genes")
+data <- cbind(data, station, depth, filter)
+
+# --- Linking station number with longitude and latitude
+get_station <- function(x){substr(x = x, start = 6, stop = nchar(x)-4)}
+lonlat$Station<- get_station(lonlat$Station)
+
+data$lon <- NA
+data$lat <- NA
+
+for (i in 1:nrow(data)){
+  data$lon[i] <- lonlat$Longitude[which(as.numeric(lonlat$Station)==data$station[i])[1]]
+  data$lat[i] <- lonlat$Latitude[which(as.numeric(lonlat$Station)==data$station[i])[1]]
+}
+
+#' =============================================================================
+#' =============================================================================
+#' =============================================================================
+
 setMethod("plot", "zzplot", function(x){
   barplot(x)
 })
