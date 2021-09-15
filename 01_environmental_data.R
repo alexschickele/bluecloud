@@ -27,7 +27,7 @@ var_names <- VAR # initializing names for the future list actually available
 env_raw <- NULL # for storing all env variable values
 
 if(DEPTH == "SUR"){
-  DEPTH <- data.frame(top = 0, bottom = 30)
+  DEPTH <- data.frame(top = 0, bottom = 10)
 }
 
 # --- Loading environmental variables

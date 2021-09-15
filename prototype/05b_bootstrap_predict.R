@@ -48,25 +48,25 @@ for(b in 1:NBOOTSTRAP){
 } #b loop
 
 # --- Predicting values
-m <- lapply(m, function(x) {x[[1]]})
-y_hat <- NULL
-
-b = 1
-zz <- mbtr_predict(model = m[[b]], X_pred = X)
-zz <- mapply(FUN = mbtr_predict,
-                  model = m[b],
-                  X_pred = as.data.frame(X),
-                  SIMPLIFY = FALSE,
-                  USE.NAMES = FALSE)
-
-b <- 1:NBOOTSTRAP
-zz <- lapply(m, FUN = mbtr_predict(m, X))
-zz <- mcmapply(FUN = mbtr_predict,
-                  model = m[b],
-                  X_pred = X,
-                  SIMPLIFY = FALSE,
-                  USE.NAMES = FALSE,
-                  mc.cores = min(c(MAX_CLUSTER, N_FOLD*nrow(HYPERPARAMETERS))))
+# m <- lapply(m, function(x) {x[[1]]})
+# y_hat <- NULL
+# 
+# b = 1
+# zz <- mbtr_predict(model = m[[b]], X_pred = X)
+# zz <- mapply(FUN = mbtr_predict,
+#                   model = m[b],
+#                   X_pred = as.data.frame(X),
+#                   SIMPLIFY = FALSE,
+#                   USE.NAMES = FALSE)
+# 
+# b <- 1:NBOOTSTRAP
+# zz <- lapply(m, FUN = mbtr_predict(m, X))
+# zz <- mcmapply(FUN = mbtr_predict,
+#                   model = m[b],
+#                   X_pred = X,
+#                   SIMPLIFY = FALSE,
+#                   USE.NAMES = FALSE,
+#                   mc.cores = min(c(MAX_CLUSTER, N_FOLD*nrow(HYPERPARAMETERS))))
 
 y_hat <- NULL
 cat(paste("---", Sys.time(), "// Projecting maps // This may take some time --- \n"))
@@ -78,6 +78,7 @@ cat(paste("---", Sys.time(), "// Done --- \n"))
 
 # ==================  PART 2 : plotting predictions ============================
 # --- Initializing raster and projections data
+pdf(paste0(bluecloud.wd,"/graphic/raw_graphic.pdf"))
 r0 <- raster(res=res(features), ext=extent(features))
 
 y_hat_m <- apply(y_hat, c(1,2), mean)
@@ -131,8 +132,7 @@ abline(h = seq(0:ncol(y_hat_m))+0.5, v = seq(0:ncol(y_hat_m))+0.5)
 #Final check on the proportions
 print(range(apply(y_hat, c(1,3), sum)))
 
-#Pairwise correlation between targets
-
+while (dev.cur() > 1) dev.off()
 
 
 

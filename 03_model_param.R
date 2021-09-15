@@ -5,7 +5,7 @@
 #' 
 #' TO DO:
 
-dev.off()
+while (dev.cur() > 1) dev.off()
 source(file = "/home/aschickele/workspace/bluecloud descriptor/00_config.R")
 
 # --- Custom functions
@@ -58,8 +58,9 @@ m <- mcmapply(FUN=mbtr_fit,
 # --- Plotting results
 pal <- rep(brewer.pal(nrow(HYPERPARAMETERS), "Spectral"), each = N_FOLD)
 
+pdf(paste0(bluecloud.wd,"/graphic/raw_loss.pdf"))
 par(bg="black", col="white", col.axis = "white", col.lab="white",col.main="white")
-plot(unlist(m[[1]][[2]]), type='l', ylim = c(0,1), xlim=c(0,NBOOST), ylab = "Loss", xlab = "Number of boost rounds")
+plot(unlist(m[[1]][[2]]), type='l', ylim = c(0,0.2), xlim=c(0,NBOOST), ylab = "Loss", xlab = "Number of boost rounds")
 for (hp in 1:nrow(HYPERPARAMETERS)){
   for (cv in 1:N_FOLD){
     v <- unlist(m[[(hp-1)*N_FOLD+cv]][[2]])
@@ -69,8 +70,8 @@ for (hp in 1:nrow(HYPERPARAMETERS)){
   } # k-fold cv loop
 } # hp hyperparameter loop
 grid(lwd = 2)
-abline(h = seq(0,1,0.05), v = seq(0,NBOOST, NBOOST/20), lty = "dotted")
-legend(x=NBOOST-0.1*NBOOST, 1, legend = seq(1:nrow(HYPERPARAMETERS)),
+abline(h = seq(0,0.2,0.01), v = seq(0,NBOOST, NBOOST/20), lty = "dotted")
+legend(x=NBOOST-0.1*NBOOST, 0.2, legend = seq(1:nrow(HYPERPARAMETERS)),
        fill = brewer.pal(nrow(HYPERPARAMETERS), "Spectral"),
        title = "hyp. nb. :")
 
@@ -111,5 +112,7 @@ for(hp in 1:nrow(HYPERPARAMETERS)){
   rem_file <- data_file[grep(paste0("_",hp,"_"), data_file)]
   file.remove(rem_file)
 }
+
+while (dev.cur() > 1) dev.off()
 
 # --- END

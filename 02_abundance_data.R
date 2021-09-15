@@ -4,11 +4,8 @@
 #' 2. The corresponding environmental features : Xfeatures * Nobs
 #' 
 #' TO DO LIST:
-#' - to update for unknowns as soon as I have the data
-#' - cleanup useless objects for speed and RAM usage
-#' - find a way to make a user choice or a loop after checking numbers of genes
-#' and location for each protein family, probably in the master script by separating
-#' in two functions with a default loop mode
+
+
 
 # ================================== PART 1a ====================================
 # Building raw dataset from MATOU and the Tara Ocean locations
@@ -19,8 +16,9 @@ source(file = "/home/aschickele/workspace/bluecloud descriptor/00_config.R")
 # --- Loading data
 lonlat <- read.csv(paste0(data.wd,"/data/SMAGs_Env.csv"), sep=';', header = TRUE)
 data_cluster <- read_feather(paste0(data.wd,"/data/CC_PFAM_Carb_taxo_80SS.feather"))
-data_reads <- read.table(paste0(data.wd,"/data/SMAGs-v1.cds.95.mg.matrix_CARB"))
-# data_reads <- read.table(paste0(data.wd,"/data/SMAGs-v1.cds.95.mt.matrix_CARB"))
+# data_depth <- read.table(paste0(data.wd,"/data/SMAGS_insitu_WOA.txt"), sep = "\t", header = TRUE)
+# data_reads <- read.table(paste0(data.wd,"/data/SMAGs-v1.cds.95.mg.matrix_CARB"))
+data_reads <- read.table(paste0(data.wd,"/data/SMAGs-v1.cds.95.mt.matrix_CARB"))
 
 # --- Reshape data_reads in single entry dataframe
 data_reads <- cbind(rownames(data_reads), data_reads)
@@ -76,6 +74,9 @@ for (i in 1:nrow(data)){
   data$lon[i] <- lonlat$Longitude[which(as.numeric(lonlat$Station)==data$station[i])[1]]
   data$lat[i] <- lonlat$Latitude[which(as.numeric(lonlat$Station)==data$station[i])[1]]
 }
+names(data) <- c("Genes", "geneLength.x", "readCount", "couvCum", "couveBase",
+                 "sampleName", "Station", "depth", "iteration", "filter", "CC_ID",
+                 "PfamDesc", "taxId", "taxName", "taxRank", "taxLineage", "Longitude", "Latitude")
 
 # --- Save
 write_feather(data, path = paste0(bluecloud.wd,"/data/target_raw.feather"))
@@ -126,20 +127,21 @@ feature0 <- stack(paste0(bluecloud.wd,"/data/features"))
 
 # --- Selecting subset of the target0 data
 # TO DO with the final dataset from Pavla, for now i test on unknown surface and ssuu
-target1 <- target0[which(target0$CC_ID==CLUSTER & target0$depth==DEPTH),]
-target1 <- target1[grep(pattern = "SSUU|MMQQ|QQSS|GGMM", target1$filter),]
+target1 <- target0[which(target0$CC_ID==CLUSTER),]
+target1 <- target1[grep(pattern = paste0(DEPTH, collapse = "|"), target1$depth),]
+target1 <- target1[grep(pattern = paste0(FILTER, collapse = "|"), target1$filter),]
 
 # --- Building Y
 # obs <- unique(target1$Station)
-obs <- unique(target1[,c("Station", "filter")])
+obs <- as.data.frame(unique(target1[,c("Station", "filter", "depth")]))
 tar <- unique(target1$Genes)
 
-Y0 <- matrix(0, ncol = length(tar), nrow = length(obs))
-dimnames(Y0) <- list(obs,tar)
+Y0 <- matrix(0, ncol = length(tar), nrow = nrow(obs))
+dimnames(Y0) <- list(paste0(obs$Station,obs$filter, obs$depth),tar)
 
-for (i in 1:length(obs)){
+for (i in 1:nrow(obs)){
   for (j in 1:length(tar)){
-    tmp <- target1[which(target1$Genes==tar[j]  & target1$Station==obs[i]),]
+    tmp <- target1[which(target1$Genes==tar[j]  & target1$Station==obs[i,1] & target1$filter==obs[i,2] & target1$depth==obs[i,3]),]
     Y0[i,j] <- sum(tmp$readCount)
   }
 }
@@ -149,12 +151,12 @@ for (i in 1:length(obs)){
 Y <- as.data.frame(Y0/apply(Y0, 1, sum))
 
 # --- Building X
-obs_xy <- unique(data.frame(obs=target1$Station, x=target1$Longitude, y=target1$Latitude))
-if(length(which(duplicated(obs_xy$obs)==TRUE))>0){
-  obs_xy <- obs_xy[-which(duplicated(obs_xy$obs)==TRUE),] # some station have two different locations... take the first one
+obs_xy <- unique(data.frame(target1[,c("Station", "filter", "depth","Longitude", "Latitude")]))
+if(length(which(duplicated(obs_xy[,c("Station","filter", "depth")])==TRUE))>0){
+  obs_xy <- obs_xy[-which(duplicated(obs_xy[,c("Station","filter", "depth")])==TRUE),] # some station have two different locations... take the first one
 }
 
-X <- as.data.frame(raster::extract(feature0, obs_xy[,-1]))
+X <- as.data.frame(raster::extract(feature0, obs_xy[,c("Longitude","Latitude")]))
 
 # --- Saving data
 out <- which(is.na(X[,1]) | is.na(Y[,1])) #remove point on land or no relative abundance
@@ -163,5 +165,38 @@ X <- X[-out,]
 
 write_feather(X, path = paste0(bluecloud.wd,"/data/X.feather"))
 write_feather(Y, path = paste0(bluecloud.wd,"/data/Y.feather"))
+
+# ==================================== PART 4 ==================================
+# Visual check on the target data relation to the environment
+
+source(file = "/home/aschickele/workspace/bluecloud descriptor/00_config.R")
+
+# --- Load data
+X0 <- as.data.frame(read_feather(paste0(bluecloud.wd,"/data/X.feather")))
+Y0 <- as.data.frame(read_feather(paste0(bluecloud.wd,"/data/Y.feather")))
+
+# --- Plotting data
+pal <- rep(brewer.pal(nrow(HYPERPARAMETERS), "Spectral"), each = 11)
+
+pdf(paste0(bluecloud.wd,"/graphic/raw_data.pdf"))
+for(yi in 1:ncol(Y0)){
+  par(mfrow=c(3,4), bg="black", col="white", col.axis = "white", col.lab="white",col.main="white",
+      mar=c(5,3,3,2))
+  for(xi in 1:ncol(X0)){
+    plot(as.vector(X0[,xi]), as.vector(Y0[,yi]), 
+         xlab = names(X0)[xi], ylab = "relative abundance", main = paste("target n°", yi),
+         pch = 16, col = pal[xi])
+    grid()
+  } # yi target loop
+} # xi feature loop
+
+D <- mean(apply(Y0, 1, function(x){length(which(x>0))}))
+print(paste("average number of gene present by obs :", round(D, 2), "/", ncol(Y0)))
+
+D2 <- sum(apply(Y0, 1, function(x){length(which(x>0.5))}))
+print(paste("number of obs where a gene represent more than 50% of relative abundance:", D2, "/", nrow(Y0)))
+
+while (dev.cur() > 1) dev.off()
+
 
 # --- END

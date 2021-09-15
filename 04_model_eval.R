@@ -1,5 +1,6 @@
 #' TO DO:
 
+while (dev.cur() > 1) dev.off()
 source(file = "/home/aschickele/workspace/bluecloud descriptor/00_config.R")
 
 # --- Loading data
@@ -12,10 +13,12 @@ X0 <- as.data.frame(read_feather(paste0(bluecloud.wd,"/data/X.feather")))
 r2 <- NULL
 mse <- NULL
 pal <- brewer.pal(ncol(Y0), "Spectral")
+pdf(paste0(bluecloud.wd,"/graphic/raw_eval.pdf"))
 par(bg="black", col="white", col.axis = "white", col.lab="white",col.main="white",
     mfrow =c(ceiling(N_FOLD^0.5),ceiling(N_FOLD^0.5)), mar = c(2,5,2,1))
 
 # --- Evaluating model and plotting relative abundance
+
 for(cv in 1:N_FOLD){
   # --- Loading test data and models
   X_val <- as.data.frame(read_feather(paste0(bluecloud.wd,"/data/", cv, "_X_val.feather")))
@@ -87,4 +90,5 @@ for(cv in 1:9){
   file.remove(rem_file)
 }
 
+while (dev.cur() > 1) dev.off()
 # END
