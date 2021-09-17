@@ -37,29 +37,42 @@ for(i in 1: length(VAR)){
   
   setwd(paste0(data.wd,"/share/WOA/DATA/",VAR[[i]],"/netcdf/",sub_folder,"/1.00/"))
   nc_files <- list.files()
+  nc_files <- nc_files[grep(paste(paste0(c(rep("0",9), rep("", 3)), seq(1:12), "_01"), collapse = "|"), nc_files)]
+  
+  month_raw <- NULL # temporary array for monthly data
   
   # Security if the .nc file is missing :
-  if (length(nc_files)==0){
-    cat(paste("--- The", VAR[[i]], "folder is empty, no .nc files !---\n",
+  if (length(nc_files)!=12){
+    cat(paste("--- The", VAR[[i]], "all month are not available !---\n",
               "=> Variable has been remove from the list \n"))
     var_names <- var_names[-which(var_names==VAR[i])]
     # .nc file is available, we load it and store it  
   }  else {
-    nc <- nc_open(nc_files[grep("00_01", nc_files)])
+    for(n in 1:12){
+      nc <- nc_open(nc_files[n])
+      var_short <- substr(nc_files[1], nchar(nc_files[1])-8, nchar(nc_files[1])-8)
+      month_raw <- abind(month_raw, ncvar_get(nc, paste0(var_short,"_an")), along = 4)
+    } # n month loop
     
-    var_short <- substr(nc_files[1], nchar(nc_files[1])-8, nchar(nc_files[1])-8)
-    env_raw <- abind(env_raw, ncvar_get(nc, paste0(var_short,"_an")), along = 4)
+    # --- Selecting the depth range
+    depth_bnds <- ncvar_get(nc, "depth_bnds")
+    id_depth <- data.frame(top=head(which(depth_bnds[1,]<=DEPTH$top), n=1),
+                           bottom=tail(which(depth_bnds[2,]<=DEPTH$bottom), n=1))
+    month_raw <- apply(month_raw[,,c(id_depth$top:id_depth$bottom),],c(1,2,4),
+                       function(x){mean(x,na.rm = TRUE)})
   } # end .nc security if
+  env_raw <- abind(env_raw, month_raw, along = 4)
 } # end i VAR loop
 
-# --- Selecting the depth range
-depth_bnds <- ncvar_get(nc, "depth_bnds")
+# --- Calculate yearly mean and range
+var_names <- paste0(var_names, rep(c("_mean","_range"), each = length(var_names)))
 
-id_depth <- data.frame(top=head(which(depth_bnds[1,]<=DEPTH$top), n=1),
-                       bottom=tail(which(depth_bnds[2,]<=DEPTH$bottom), n=1))
+env_data <- abind(apply(env_raw, c(1,2,4), function(x){mean(x, na.rm = TRUE)}),
+                  apply(env_raw, c(1,2,4), function(x){max(x, na.rm = TRUE)-min(x, na.rm = TRUE)}),
+                  along = 3)
 
-env_data <- apply(env_raw[,,c(id_depth$top:id_depth$bottom),],c(1,2,4),
-                  function(x){mean(x,na.rm = TRUE)})
+# --- Calculate density
+
 
 # --- Creating raster stack
 lat_bnds <- ncvar_get(nc, "lat_bnds")
