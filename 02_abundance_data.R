@@ -1,11 +1,18 @@
+
+################################################################################
+# Prototypage ouverture data MetaG SQL
+# SANS CASSER LE SERVEUR SVP
+
+
+
+################################################################################
+
 #' Here we build the relative abundance dataset with the TARA OCEAN data
 #' The output are
 #' 1. A relative abundance datasset : Ytargets * Nobs
 #' 2. The corresponding environmental features : Xfeatures * Nobs
 #' 
 #' TO DO LIST:
-
-
 
 # ================================== PART 1a ====================================
 # Building raw dataset from MATOU and the Tara Ocean locations
@@ -17,8 +24,8 @@ source(file = "/home/aschickele/workspace/bluecloud descriptor/00_config.R")
 lonlat <- read.csv(paste0(data.wd,"/data/SMAGs_Env.csv"), sep=';', header = TRUE)
 data_cluster <- read_feather(paste0(data.wd,"/data/CC_PFAM_Carb_taxo_80SS.feather"))
 # data_depth <- read.table(paste0(data.wd,"/data/SMAGS_insitu_WOA.txt"), sep = "\t", header = TRUE)
-# data_reads <- read.table(paste0(data.wd,"/data/SMAGs-v1.cds.95.mg.matrix_CARB"))
-data_reads <- read.table(paste0(data.wd,"/data/SMAGs-v1.cds.95.mt.matrix_CARB"))
+data_reads <- read.table(paste0(data.wd,"/data/SMAGs-v1.cds.95.mg.matrix_CARB"))
+# data_reads <- read.table(paste0(data.wd,"/data/SMAGs-v1.cds.95.mt.matrix_CARB"))
 
 # --- Reshape data_reads in single entry dataframe
 data_reads <- cbind(rownames(data_reads), data_reads)
@@ -149,6 +156,7 @@ for (i in 1:nrow(obs)){
 # Y0 <- Y0+rep(seq(1,ncol(Y0)), each = nrow(Y0)) # to generate more data
 # Y <- as.data.frame(Y0) # absolute abundance
 Y <- as.data.frame(Y0/apply(Y0, 1, sum))
+Y[is.na(Y)] <- 0
 
 # --- Building X
 obs_xy <- unique(data.frame(target1[,c("Station", "filter", "depth","Longitude", "Latitude")]))

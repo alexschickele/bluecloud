@@ -1,4 +1,116 @@
 
+# ============== PART 1 : get world ocean atlas data with range YOUPI ==========
+
+source(file = "/home/aschickele/workspace/bluecloud descriptor/00_config.R")
+
+# --- Initializing some parameters
+VAR <- list.files(paste0(data.wd,"/share/WOA/DATA"))
+var_names <- VAR # initializing names for the future list actually available
+env_raw <- NULL # for storing all env variable values
+
+if(DEPTH == "SUR"){
+  DEPTH <- data.frame(top = 0, bottom = 10) # TO IMPROVE
+}
+
+# --- Loading environmental variables
+for(i in 1: length(VAR)){
+  sub_folder <- list.files(path = paste0(data.wd,"/share/WOA/DATA/",VAR[[i]],"/netcdf/"),
+                           pattern = c("all|A5B7"))[1]
+  setwd(paste0(data.wd,"/share/WOA/DATA/",VAR[[i]],"/netcdf/",sub_folder,"/1.00/"))
+  nc_files <- list.files()
+  nc_files <- nc_files[grep(paste(paste0(c(rep("0",9), rep("", 3)), seq(1:12), "_01"), collapse = "|"), nc_files)]
+  
+  month_raw <- NULL # temporary array for monthly data
+  
+  # Security if the .nc file is missing :
+  if (length(nc_files)!=12){
+    cat(paste("--- The", VAR[[i]], "all month are not available !---\n",
+              "=> Variable has been remove from the list \n"))
+    var_names <- var_names[-which(var_names==VAR[i])]
+    # .nc file is available, we load it and store it  
+  }  else {
+    for(n in 1:12){
+      nc <- nc_open(nc_files[n])
+      var_short <- substr(nc_files[1], nchar(nc_files[1])-8, nchar(nc_files[1])-8)
+      month_raw <- abind(month_raw, ncvar_get(nc, paste0(var_short,"_an")), along = 4)
+    } # n month loop
+    
+    # --- Extract salinity for later MLD calculations
+    if(i == which(var_names == "salinity")){salinity_raw <- month_raw}
+    # --- Extract temperature for later MLD calculations
+    if(i == which(var_names == "temperature")){
+      temperature_raw <- month_raw
+      depth_raw <- ncvar_get(nc, "depth_bnds") %>% apply(2, mean)
+      lat_raw <- lat_bnds <- ncvar_get(nc, "lat_bnds") %>% apply(2, mean)
+      lon_raw <- lon_bnds <- ncvar_get(nc, "lon_bnds") %>% apply(2, mean)}
+    
+    # --- Selecting the depth range
+    depth_bnds <- ncvar_get(nc, "depth_bnds")
+    id_depth <- data.frame(top=head(which(depth_bnds[1,]<=DEPTH$top), n=1),
+                           bottom=tail(which(depth_bnds[2,]<=DEPTH$bottom), n=1))
+    month_raw <- apply(month_raw[,,c(id_depth$top:id_depth$bottom),],c(1,2,4),
+                       function(x){mean(x,na.rm = TRUE)})
+  } # end .nc security if
+  env_raw <- abind(env_raw, month_raw, along = 4)
+} # end i VAR loop
+
+# --- Calculate yearly mean and range
+var_names <- paste0(var_names, rep(c("_mean","_range"), each = length(var_names)))
+env_data <- abind(apply(env_raw, c(1,2,4), function(x){mean(x, na.rm = TRUE)}),
+                  apply(env_raw, c(1,2,4), function(x){max(x, na.rm = TRUE)-min(x, na.rm = TRUE)}),
+                  along = 3)
+
+# --- Calculate MLD
+tmp <- array(data = NA, dim = dim(temperature_raw))
+
+lon <- apply(tmp, c(2,3,4), function(x){x <- lon_raw})
+lat <- apply(tmp, c(1,3,4), function(x){x <- lat_raw}) %>%
+  aperm(c(2,1,3,4))
+depth <- apply(tmp, c(1,2,4), function(x){x <- depth_raw}) %>%
+  aperm(c(2,3,1,4))
+
+pressure_raw <- mcmapply(FUN = swPressure,
+                         depth = depth, 
+                         latitude = lat,
+                         SIMPLIFY = TRUE,
+                         mc.cores = 5)
+
+density_raw <- mapply(FUN = swSigma,
+                        salinity = salinity_raw,
+                        temperature = temperature_raw,
+                        pressure = pressure,
+                        longitude = lon,
+                        latitude = lat,
+                        SIMPLIFY = TRUE)
+
+
+# --- Creating raster stack
+lat_bnds <- ncvar_get(nc, "lat_bnds")
+lon_bnds <- ncvar_get(nc, "lon_bnds")
+
+r <- raster(xmn = min(lon_bnds[1,]), xmx = max(lon_bnds[2,]),
+            ymn = min(lat_bnds[1,]), ymx = max(lat_bnds[2,]),
+            resolution = lon_bnds[1,2]-lon_bnds[1,1])
+
+for (i in 1:length(var_names)){
+  if (i==1) {
+    r_env <- setValues(r, as.vector(env_data[,,i]))
+  } else {
+    tmp <- setValues(r, as.vector(env_data[,,i]))
+    r_env <- stack(r_env, tmp)
+  } #  end if
+} # end var_names loop
+
+names(r_env) <- var_names
+r_env <- flip(r_env, direction = 'y')
+
+# --- Saving resulting raster
+plot(r_env)
+
+
+
+
+
 # ============== Building target_raw dataset from Pavla real data youpi ========
 
 source(file = "/home/aschickele/workspace/bluecloud descriptor/00_config.R")

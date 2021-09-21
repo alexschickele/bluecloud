@@ -61,8 +61,8 @@ for(b in 1:NBOOTSTRAP){
 # 
 # b <- 1:NBOOTSTRAP
 # zz <- lapply(m, FUN = mbtr_predict(m, X))
-# zz <- mcmapply(FUN = mbtr_predict,
-#                   model = m[b],
+# zz <- mclapply(FUN = mbtr_predict,
+#                   X = m,
 #                   X_pred = X,
 #                   SIMPLIFY = FALSE,
 #                   USE.NAMES = FALSE,
