@@ -16,6 +16,8 @@ library(mvrsquared)
 library(tidyverse)
 library(oce)
 library(castr)
+library(vroom)
+library(RSQLite)
 
 # --- Input / Output directories
 data.wd <- "/home/aschickele/complex"
@@ -33,12 +35,12 @@ MIN.GENE <- 3 # minimum of genes per cluster represented in the data summary
 MIN.STATION <- 10 # minimum presence of genes in the data summary
 
 DEPTH <- c("SUR") # selected depth for genomic data
-FILTER <- c("QQSS") # selected size filter for genomic data
+FILTER <- c("SSUU", "MMQQ", "QQSS", "GGMM") # selected size filter for genomic data
 CLUSTER <- "CC_995588" # selected protein family
 
 # --- Model specific parameters
 # Hyperparameters to test in the model (03 and 04)
-HYPERPARAMETERS <- data.frame(LEARNING_RATE = c(1e-4, 1e-4, 3e-4, 1e-4),
+HYPERPARAMETERS <- data.frame(LEARNING_RATE = c(1e-2, 6e-3, 3e-3, 1e-3),
                               N_Q = c(10, 20, 50, 100),
                               MEAN_LEAF = c(10,20,30,50))
 

@@ -1,4 +1,83 @@
 
+################################################################################
+# Load and work on metaG SQL database
+# DONT BREAK SERVER PLEAAAAAASE
+################################################################################
+
+source(file = "/home/aschickele/workspace/bluecloud descriptor/00_config.R")
+
+# --- Create and open RSQLite database
+db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/omic_all.sqlite"))
+
+# --- Open read database and filter station x prof x size
+reads <- vroom(file = paste0(bluecloud.wd, "/omic_data/SMAGs-v1.cds.95.mg.matrix_CC_corr_80cutoff")) %>%
+  dplyr::select(contains(c("...1", DEPTH))) %>%
+  dplyr::select(contains(c("...1", FILTER))) %>% 
+  rename(Genes = 1) %>% 
+  pivot_longer(!Genes, names_to = "code", values_to = "readCount")
+copy_to(db, reads, temporary = FALSE, overwrite = TRUE)
+
+# --- Open cluster database
+clusters <- read_feather(paste0(bluecloud.wd, "/omic_data/CC_PFAM_taxo_80cutoff.feather")) %>% 
+  dplyr::select(c("Genes","PFAMs","CC_ID", "Class", "Order", "Family", "Genus"))
+copy_to(db, clusters, temporary = FALSE, overwrite = TRUE)
+
+# --- Open lon lat database
+locs <- vroom(file = paste0(bluecloud.wd, "/omic_data/SMAGs_Env_lonlat.csv")) %>% 
+  dplyr::select("Station","Latitude","Longitude")
+copy_to(db, locs, temporary = FALSE, overwrite = TRUE)
+dbDisconnect(db)
+
+# --- Calculations and join on database
+db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/omic_all.sqlite"))
+
+reads <- tbl(db, "reads") %>% 
+  mutate(code = paste0("00", code),
+         Station = str_sub(code, -13, -11),
+         Depth = str_sub(code, -10, -8),
+         Filter = str_sub(code, -6, -3)) %>% 
+  select(-code)
+
+locs <- tbl(db, "locs") %>% 
+  mutate(Station = str_sub(Station, 6, 8)) %>% 
+  distinct()
+
+data <- reads %>% 
+  inner_join(tbl(db, "clusters"), by = "Genes") %>% 
+  left_join(locs, by = "Station") %>% 
+  collect()
+
+# --- Grouping by clusters and counting number of genes and station by clusters
+dbRemoveTable(db, "cluster_desc")
+cluster_desc <- data %>% 
+  group_by(CC_ID) %>% 
+  summarise(nGenes = n_distinct(Genes), nStation = n_distinct(Station), .groups = "drop") %>%
+  filter(nGenes >= 5 & nGenes <= 25)
+copy_to(db, cluster_desc, temporary = FALSE, overwrite = TRUE)
+
+cluster_desc <- tbl(db, "cluster_desc") %>% 
+  collect()
+head(cluster_desc)
+
+# PRoto
+cluster_desc <- data %>% 
+  group_by(CC_ID, Station) %>% 
+  summarise(nGenes0 = n_distinct(Genes), nreads = sum(readCount, na.rm = TRUE), .groups = "drop_last") %>%
+  filter(nreads > 0) %>% 
+  summarise(nGenes = sum(nGenes0, na.rm = TRUE), nStation = n_distinct(Station), .groups = "drop") %>%
+  filter(nGenes >= 5 & nGenes <= 25)
+
+# check graphics
+data <- tbl(db, "data") %>% 
+  collect()
+par(mar=c(12,3,3,3))
+barplot(table(as.factor(data$Class)),
+        las = 2)
+
+
+
+################################################################################
+
 # ============== PART 1 : get world ocean atlas data with range YOUPI ==========
 
 source(file = "/home/aschickele/workspace/bluecloud descriptor/00_config.R")

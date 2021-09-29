@@ -44,29 +44,14 @@ m <- mcmapply(FUN=mbtr_fit,
 m <- list()
 for(b in 1:NBOOTSTRAP){
   m0 <- py_load_object(paste0(bluecloud.wd,"/data/",b,"_",b,"_m"), pickle = "pickle")
+  m0 <- m0[[1]]
   m <- append(m, list(m0))
 } #b loop
 
 # --- Predicting values
-# m <- lapply(m, function(x) {x[[1]]})
-# y_hat <- NULL
-# 
-# b = 1
-# zz <- mbtr_predict(model = m[[b]], X_pred = X)
-# zz <- mapply(FUN = mbtr_predict,
-#                   model = m[b],
-#                   X_pred = as.data.frame(X),
-#                   SIMPLIFY = FALSE,
-#                   USE.NAMES = FALSE)
-# 
-# b <- 1:NBOOTSTRAP
-# zz <- lapply(m, FUN = mbtr_predict(m, X))
-# zz <- mclapply(FUN = mbtr_predict,
-#                   X = m,
-#                   X_pred = X,
-#                   SIMPLIFY = FALSE,
-#                   USE.NAMES = FALSE,
-#                   mc.cores = min(c(MAX_CLUSTER, N_FOLD*nrow(HYPERPARAMETERS))))
+m <- mclapply(m,
+              mbtr_predict(m, X))
+
 
 y_hat <- NULL
 cat(paste("---", Sys.time(), "// Projecting maps // This may take some time --- \n"))
