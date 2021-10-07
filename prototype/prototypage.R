@@ -4,76 +4,113 @@
 # DONT BREAK SERVER PLEAAAAAASE
 ################################################################################
 
+# --- PART 1 : CREATING A DATABASE
 source(file = "/home/aschickele/workspace/bluecloud descriptor/00_config.R")
 
 # --- Create and open RSQLite database
-db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/omic_all.sqlite"))
+unlink(paste0(bluecloud.wd, "/omic_data/omic_DB.sqlite"))
+db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/omic_DB.sqlite"))
 
-# --- Open read database and filter station x prof x size
-reads <- vroom(file = paste0(bluecloud.wd, "/omic_data/SMAGs-v1.cds.95.mg.matrix_CC_corr_80cutoff")) %>%
-  dplyr::select(contains(c("...1", DEPTH))) %>%
-  dplyr::select(contains(c("...1", FILTER))) %>% 
-  rename(Genes = 1) %>% 
-  pivot_longer(!Genes, names_to = "code", values_to = "readCount")
-copy_to(db, reads, temporary = FALSE, overwrite = TRUE)
-
-# --- Open cluster database
+# --- 1. Open "clusters" and sort by n_genes
+# We also create the "cluster_sort" table for future filtering of the DB
 clusters <- read_feather(paste0(bluecloud.wd, "/omic_data/CC_PFAM_taxo_80cutoff.feather")) %>% 
   dplyr::select(c("Genes","PFAMs","CC_ID", "Class", "Order", "Family", "Genus"))
 copy_to(db, clusters, temporary = FALSE, overwrite = TRUE)
 
-# --- Open lon lat database
-locs <- vroom(file = paste0(bluecloud.wd, "/omic_data/SMAGs_Env_lonlat.csv")) %>% 
-  dplyr::select("Station","Latitude","Longitude")
-copy_to(db, locs, temporary = FALSE, overwrite = TRUE)
-dbDisconnect(db)
+cluster_sort <- tbl(db, "clusters") %>%
+  group_by(CC_ID) %>% 
+  summarise(n_genes = n_distinct(Genes), 
+            unknown_rate = sum(is.na(PFAMs))/n(),
+            .groups = "drop")
 
-# --- Calculations and join on database
-db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/omic_all.sqlite"))
-
-reads <- tbl(db, "reads") %>% 
+# --- 2. Open "reads" and filter according to n_genes
+# We filter now to reduce the DB and upcoming calculation size
+reads <- vroom(file = paste0(bluecloud.wd, "/omic_data/SMAGs-v1.cds.95.mg.matrix_CC_corr_80cutoff")) %>% 
+  rename(Genes = 1) %>% 
+  dplyr::select(contains(c("Genes", DEPTH))) %>%
+  dplyr::select(contains(c("Genes", FILTER))) %>% 
+  pivot_longer(!Genes, names_to = "code", values_to = "readCount") %>% 
   mutate(code = paste0("00", code),
-         Station = str_sub(code, -13, -11),
-         Depth = str_sub(code, -10, -8),
-         Filter = str_sub(code, -6, -3)) %>% 
-  select(-code)
+         Station = str_sub(code, -13, -11)) %>% 
+  select(-code) %>% 
+  inner_join(select(clusters, "Genes"))
+copy_to(db, reads, temporary = FALSE, overwrite = TRUE)
 
-locs <- tbl(db, "locs") %>% 
+# --- 3. Open "locs" and calculate sum_reads by station
+# Used for normalisation of the reads
+locs <- vroom(file = paste0(bluecloud.wd, "/omic_data/SMAGs_Env_lonlat.csv")) %>% 
+  dplyr::select("Station","Latitude","Longitude") %>% 
   mutate(Station = str_sub(Station, 6, 8)) %>% 
   distinct()
+copy_to(db, locs, temporary = FALSE, overwrite = TRUE)
 
-data <- reads %>% 
+sum_station <- tbl(db, "reads") %>% 
+  group_by(Station) %>% 
+  summarise(sum_reads = sum(readCount, na.rm = TRUE), .groups = "drop") %>% 
+  left_join(tbl(db, "locs"), by = "Station") %>% 
+  select("Station","sum_reads")
+copy_to(db, sum_station, temporary = FALSE, overwrite = TRUE)
+
+# --- 4. Join "reads", "clusters" and "locs" into "data"
+# To calculate supplementary filtering metrics
+data <- tbl(db, "reads") %>% 
   inner_join(tbl(db, "clusters"), by = "Genes") %>% 
-  left_join(locs, by = "Station") %>% 
-  collect()
+  left_join(tbl(db, "locs"), by = "Station")
+copy_to(db, data, temporary = FALSE, overwrite = TRUE)
+dbSendQuery(db, "create index by_cluster on data (CC_ID )")
 
-# --- Grouping by clusters and counting number of genes and station by clusters
-dbRemoveTable(db, "cluster_desc")
-cluster_desc <- data %>% 
-  group_by(CC_ID) %>% 
-  summarise(nGenes = n_distinct(Genes), nStation = n_distinct(Station), .groups = "drop") %>%
-  filter(nGenes >= 5 & nGenes <= 25)
-copy_to(db, cluster_desc, temporary = FALSE, overwrite = TRUE)
-
-cluster_desc <- tbl(db, "cluster_desc") %>% 
-  collect()
-head(cluster_desc)
-
-# PRoto
-cluster_desc <- data %>% 
+# --- 5. Add "n_station", "sum_reads", "unknown_rate" to cluster_sort
+tmp <- tbl(db, "data") %>% 
   group_by(CC_ID, Station) %>% 
-  summarise(nGenes0 = n_distinct(Genes), nreads = sum(readCount, na.rm = TRUE), .groups = "drop_last") %>%
-  filter(nreads > 0) %>% 
-  summarise(nGenes = sum(nGenes0, na.rm = TRUE), nStation = n_distinct(Station), .groups = "drop") %>%
-  filter(nGenes >= 5 & nGenes <= 25)
+  summarise(n_reads = sum(readCount, na.rm = TRUE), .groups = "drop_last") %>%
+  filter(n_reads > 0) %>% 
+  summarise(n_station = n_distinct(Station), 
+            sum_reads = sum(n_reads, na.rm = TRUE))
 
-# check graphics
-data <- tbl(db, "data") %>% 
+cluster_sort <- cluster_sort %>% 
+  inner_join(tmp)
+copy_to(db, cluster_sort, temporary = FALSE, na.rm = TRUE)
+
+
+
+# --- 6. Close connection
+dbDisconnect(db)
+
+# --- PART 2 : querying database
+source(file = "/home/aschickele/workspace/bluecloud descriptor/00_config.R")
+db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/omic_DB.sqlite"))
+
+# --- 1. Filter data by cluster sort
+query <- tbl(db, "cluster_sort") %>% 
+  filter(n_station >= 80 & n_genes >= 5 & n_genes <= 25)
+
+target <- query %>% 
+  select(CC_ID) %>% 
+  inner_join(tbl(db, "data")) %>% 
+  select(c("Genes", "CC_ID", "readCount", "Station", "Longitude", "Latitude"))
+
+# --- 3. Reshape and normalize data by sum_station
+target <- target %>% 
+  group_by(CC_ID, Station, Latitude, Longitude) %>% 
+  summarise(reads = sum(readCount), .groups = "drop") %>% 
+  pivot_wider(names_from = CC_ID, values_from = reads) %>% 
+  left_join(tbl(db, "sum_station")) %>% 
+  mutate_at(.vars = vars(c(-Station, -Latitude, -Longitude, -sum_reads)), .funs = ~ . / sum_reads) %>%
   collect()
-par(mar=c(12,3,3,3))
-barplot(table(as.factor(data$Class)),
-        las = 2)
 
+# --- 4. Building X
+# TO DO : Due to the coarse resolution of the features, environmental data are taken from nearest neighbor in case of NA
+feature0 <- stack(paste0(bluecloud.wd,"/data/features"))
+obs_xy <- target %>% 
+  select(c(Longitude, Latitude))
+
+X <- as.data.frame(raster::extract(feature0, obs_xy[,c("Longitude","Latitude")]))
+write_feather(X, path = paste0(bluecloud.wd,"/data/X.feather"))
+
+# --- 5. Building Y
+Y <- target %>% 
+  select(contains("CC"))
+write_feather(Y, path = paste0(bluecloud.wd,"/data/Y.feather"))
 
 
 ################################################################################

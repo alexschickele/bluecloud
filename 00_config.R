@@ -35,7 +35,7 @@ MIN.GENE <- 3 # minimum of genes per cluster represented in the data summary
 MIN.STATION <- 10 # minimum presence of genes in the data summary
 
 DEPTH <- c("SUR") # selected depth for genomic data
-FILTER <- c("SSUU", "MMQQ", "QQSS", "GGMM") # selected size filter for genomic data
+FILTER <- c("MMQQ") # selected size filter for genomic data
 CLUSTER <- "CC_995588" # selected protein family
 
 # --- Model specific parameters

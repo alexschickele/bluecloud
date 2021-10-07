@@ -1,180 +1,129 @@
-
-################################################################################
-# Prototypage ouverture data MetaG SQL
-# SANS CASSER LE SERVEUR SVP
-
-
-
-################################################################################
-
 #' Here we build the relative abundance dataset with the TARA OCEAN data
 #' The output are
 #' 1. A relative abundance datasset : Ytargets * Nobs
 #' 2. The corresponding environmental features : Xfeatures * Nobs
 #' 
 #' TO DO LIST:
+#' - check if its needed to extract feature data from nearest neighbor pixel
+#' - call the query parameters from the config file
+#' - create one database per filter size and name it dynamically ?
 
-# ================================== PART 1a ====================================
-# Building raw dataset from MATOU and the Tara Ocean locations
-# Adapted for the final data
-
-source(file = "/home/aschickele/workspace/bluecloud descriptor/00_config.R")
-
-# --- Loading data
-lonlat <- read.csv(paste0(data.wd,"/data/SMAGs_Env.csv"), sep=';', header = TRUE)
-data_cluster <- read_feather(paste0(data.wd,"/data/CC_PFAM_Carb_taxo_80SS.feather"))
-# data_depth <- read.table(paste0(data.wd,"/data/SMAGS_insitu_WOA.txt"), sep = "\t", header = TRUE)
-data_reads <- read.table(paste0(data.wd,"/data/SMAGs-v1.cds.95.mg.matrix_CARB"))
-# data_reads <- read.table(paste0(data.wd,"/data/SMAGs-v1.cds.95.mt.matrix_CARB"))
-
-# --- Reshape data_reads in single entry dataframe
-data_reads <- cbind(rownames(data_reads), data_reads)
-data_reads <- reshape(data_reads, varying = list(2:ncol(data_reads)),
-                      idvar = 1, ids = rownames(data_reads), times = colnames(data_reads)[-1],
-                      direction = "long")
-
-rownames(data_reads) <- NULL
-colnames(data_reads) <- c("Genes","code","readCount")
-
-data_reads <- data_reads[grep("DCM|SUR", data_reads$code),] # keeping only used ones
-data_reads <- data_reads[grep("SSUU|MMQQ|QQSS|GGMM", data_reads$code),] # keeping only used ones
-
-# --- Decompose code names
-Station <- substr(data_reads$code, start = 2, stop = regexpr("DCM|SUR", data_reads$code)-1)
-Station <- sprintf("%03d",as.numeric(Station))
-depth <- substr(data_reads$code, start = regexpr("DCM|SUR", data_reads$code), stop = regexpr("DCM|SUR", data_reads$code)+2)
-filter <- substr(data_reads$code, start = nchar(data_reads$code)-5, stop = nchar(data_reads$code)-2)
-
-# --- Re-defining station names
-get_station <- function(x){substr(x = x, start = 6, stop = nchar(x)-4)}
-lonlat$Station<- get_station(lonlat$Station)
-lonlat <- unique(lonlat[,c(1,3,4)])
-
-# --- Merge all
-data <- cbind(data_reads, Station, depth, filter)
-data <- merge(x = data, y = lonlat,
-              by = "Station")
-data <- merge(x = data, y = data_cluster,
-              by = "Genes")
-
-# --- Save
-write_feather(data, path = paste0(bluecloud.wd,"/data/target_raw.feather"))
-
-# ================================== PART 1b ====================================
-# Building raw dataset from MATOU and the Tara Ocean locations
-# - Currently not in use
+# ================== PART 1 : CREATING THE DATABASE ============================
+# To perform fast queries on the data and extract the necessary for the target
+# Adapted to the final data layout
 
 source(file = "/home/aschickele/workspace/bluecloud descriptor/00_config.R")
 
-# --- Loading data
-lonlat <- read.csv(paste0(data.wd,"/data/SMAGs_Env.csv"), sep=';', header = TRUE)
-data <- read_feather(paste0(data.wd,"/data/FF_metaT_Unknown_annot_subset.feather"))
+# --- 1. Create and open RSQLite database
+unlink(paste0(bluecloud.wd, "/omic_data/omic_DB.sqlite"))
+db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/omic_DB.sqlite"))
 
-# --- Linking station number with longitude and latitude
-get_station <- function(x){substr(x = x, start = 6, stop = nchar(x)-4)}
-lonlat$Station<- get_station(lonlat$Station)
+# --- 2. Open "clusters" and sort by n_genes
+# We also create the "cluster_sort" table for future filtering of the DB
+clusters <- read_feather(paste0(bluecloud.wd, "/omic_data/CC_PFAM_taxo_80cutoff.feather")) %>% 
+  dplyr::select(c("Genes","PFAMs","CC_ID", "Class", "Order", "Family", "Genus"))
+copy_to(db, clusters, temporary = FALSE, overwrite = TRUE)
 
-data$lon <- NA
-data$lat <- NA
+cluster_sort <- tbl(db, "clusters") %>%
+  group_by(CC_ID) %>% 
+  summarise(n_genes = n_distinct(Genes), 
+            unknown_rate = sum(is.na(PFAMs))/n(),
+            .groups = "drop")
 
-for (i in 1:nrow(data)){
-  data$lon[i] <- lonlat$Longitude[which(as.numeric(lonlat$Station)==data$station[i])[1]]
-  data$lat[i] <- lonlat$Latitude[which(as.numeric(lonlat$Station)==data$station[i])[1]]
-}
-names(data) <- c("Genes", "geneLength.x", "readCount", "couvCum", "couveBase",
-                 "sampleName", "Station", "depth", "iteration", "filter", "CC_ID",
-                 "PfamDesc", "taxId", "taxName", "taxRank", "taxLineage", "Longitude", "Latitude")
+# --- 3. Open "reads" and filter according to n_genes
+# We filter now to reduce the DB and upcoming calculation size
+reads <- vroom(file = paste0(bluecloud.wd, "/omic_data/SMAGs-v1.cds.95.mg.matrix_CC_corr_80cutoff")) %>% 
+  rename(Genes = 1) %>% 
+  dplyr::select(contains(c("Genes", DEPTH))) %>%
+  dplyr::select(contains(c("Genes", FILTER))) %>% 
+  pivot_longer(!Genes, names_to = "code", values_to = "readCount") %>% 
+  mutate(code = paste0("00", code),
+         Station = str_sub(code, -13, -11)) %>% 
+  select(-code) %>% 
+  inner_join(select(clusters, "Genes"))
+copy_to(db, reads, temporary = FALSE, overwrite = TRUE)
 
-# --- Save
-write_feather(data, path = paste0(bluecloud.wd,"/data/target_raw.feather"))
+# --- 4. Open "locs" and calculate sum_reads by station
+# Used for normalisation of the reads
+locs <- vroom(file = paste0(bluecloud.wd, "/omic_data/SMAGs_Env_lonlat.csv")) %>% 
+  dplyr::select("Station","Latitude","Longitude") %>% 
+  mutate(Station = str_sub(Station, 6, 8)) %>% 
+  distinct()
+copy_to(db, locs, temporary = FALSE, overwrite = TRUE)
 
-# ================================== PART 2 ====================================
-# Summary of the data
+sum_station <- tbl(db, "reads") %>% 
+  group_by(Station) %>% 
+  summarise(sum_reads = sum(readCount, na.rm = TRUE), .groups = "drop") %>% 
+  left_join(tbl(db, "locs"), by = "Station") %>% 
+  select("Station","sum_reads")
+copy_to(db, sum_station, temporary = FALSE, overwrite = TRUE)
+
+# --- 5. Join "reads", "clusters" and "locs" into "data"
+# To calculate supplementary filtering metrics
+data <- tbl(db, "reads") %>% 
+  inner_join(tbl(db, "clusters"), by = "Genes") %>% 
+  left_join(tbl(db, "locs"), by = "Station")
+copy_to(db, data, temporary = FALSE, overwrite = TRUE)
+dbSendQuery(db, "create index by_cluster on data (CC_ID )")
+
+# --- 6. Add "n_station", "sum_reads", "unknown_rate" to cluster_sort
+tmp <- tbl(db, "data") %>% 
+  group_by(CC_ID, Station) %>% 
+  summarise(n_reads = sum(readCount, na.rm = TRUE), .groups = "drop_last") %>%
+  filter(n_reads > 0) %>% 
+  summarise(n_station = n_distinct(Station), 
+            sum_reads = sum(n_reads, na.rm = TRUE))
+
+cluster_sort <- cluster_sort %>% 
+  inner_join(tmp)
+copy_to(db, cluster_sort, temporary = FALSE, na.rm = TRUE)
+
+# --- 7. Close connection
+dbDisconnect(db)
+
+# ===================== PART 2 : querying database =============================
+# Extract the necessary data for the model according to the pre-defined filters
+# i.e. number of genes and station per clusters
 
 source(file = "/home/aschickele/workspace/bluecloud descriptor/00_config.R")
+db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/omic_DB.sqlite"))
 
-# --- Load data
-target0 <- read_feather(path = paste0(bluecloud.wd,"/data/target_raw.feather"))
-target0$PFAMs[is.na(target0$PFAMs)] <- "Unknown"
+# --- 1. Filter "data" by "cluster_sort"
+query <- tbl(db, "cluster_sort") %>% 
+  filter(n_station >= 80 & n_genes >= 5 & n_genes <= 25)
 
-# --- Building data summary
-Y_summary <- data.frame(CC_ID=character(),
-                        filter=character(),
-                        depth=character(),
-                        nb.geneID=integer(),
-                        nb.station=integer(),
-                        sum.reads=integer())
+target <- query %>% 
+  select(CC_ID) %>% 
+  inner_join(tbl(db, "data")) %>% 
+  select(c("Genes", "CC_ID", "readCount", "Station", "Longitude", "Latitude"))
 
-for(c in levels(as.factor(target0$CC_ID))){
-  for(f in levels(as.factor(target0$filter))){
-    for(d in levels(as.factor(target0$depth))){
-      tmp <- target0[which(target0$CC_ID==c & target0$filter==f & target0$depth==d),]
-      nb.gene <- length(unique(tmp$Genes))
-      nb.station <- length(unique(tmp$Station))
-      sum.reads <- sum(tmp$readCount)
-      
-      if(nb.gene>MIN.GENE & nb.station>MIN.STATION){
-        Y_summary[nrow(Y_summary)+1,] <- list(c,f,d,nb.gene,nb.station, sum.reads)
-      }
-    } # depth
-  } # filter
-} # prot family name
+# --- 2. Reshape and normalize "data" by "sum_station"
+target <- target %>% 
+  group_by(CC_ID, Station, Latitude, Longitude) %>% 
+  summarise(reads = sum(readCount), .groups = "drop") %>% 
+  pivot_wider(names_from = CC_ID, values_from = reads) %>% 
+  left_join(tbl(db, "sum_station")) %>% 
+  mutate_at(.vars = vars(c(-Station, -Latitude, -Longitude, -sum_reads)), .funs = ~ . / sum_reads) %>%
+  collect()
 
-print(Y_summary)
-
-# ================================== PART 3 ====================================
-# Selecting which protein family to model and build the X and Y dataset from
-
-source(file = "/home/aschickele/workspace/bluecloud descriptor/00_config.R")
-
-# --- Load data
-target0 <- read_feather(path = paste0(bluecloud.wd,"/data/target_raw.feather"))
-target0$PFAMs[is.na(target0$PFAMs)] <- "Unknown"
+# --- 3. Building the final feature table "X"
+# TO DO : Due to the coarse resolution of the features, environmental data are taken from nearest neighbor in case of NA
 feature0 <- stack(paste0(bluecloud.wd,"/data/features"))
-
-# --- Selecting subset of the target0 data
-# TO DO with the final dataset from Pavla, for now i test on unknown surface and ssuu
-target1 <- target0[which(target0$CC_ID==CLUSTER),]
-target1 <- target1[grep(pattern = paste0(DEPTH, collapse = "|"), target1$depth),]
-target1 <- target1[grep(pattern = paste0(FILTER, collapse = "|"), target1$filter),]
-
-# --- Building Y
-# obs <- unique(target1$Station)
-obs <- as.data.frame(unique(target1[,c("Station", "filter", "depth")]))
-tar <- unique(target1$Genes)
-
-Y0 <- matrix(0, ncol = length(tar), nrow = nrow(obs))
-dimnames(Y0) <- list(paste0(obs$Station,obs$filter, obs$depth),tar)
-
-for (i in 1:nrow(obs)){
-  for (j in 1:length(tar)){
-    tmp <- target1[which(target1$Genes==tar[j]  & target1$Station==obs[i,1] & target1$filter==obs[i,2] & target1$depth==obs[i,3]),]
-    Y0[i,j] <- sum(tmp$readCount)
-  }
-}
-
-# Y0 <- Y0+rep(seq(1,ncol(Y0)), each = nrow(Y0)) # to generate more data
-# Y <- as.data.frame(Y0) # absolute abundance
-Y <- as.data.frame(Y0/apply(Y0, 1, sum))
-Y[is.na(Y)] <- 0
-
-# --- Building X
-obs_xy <- unique(data.frame(target1[,c("Station", "filter", "depth","Longitude", "Latitude")]))
-if(length(which(duplicated(obs_xy[,c("Station","filter", "depth")])==TRUE))>0){
-  obs_xy <- obs_xy[-which(duplicated(obs_xy[,c("Station","filter", "depth")])==TRUE),] # some station have two different locations... take the first one
-}
+obs_xy <- target %>% 
+  select(c(Longitude, Latitude))
 
 X <- as.data.frame(raster::extract(feature0, obs_xy[,c("Longitude","Latitude")]))
-
-# --- Saving data
-out <- which(is.na(X[,1]) | is.na(Y[,1])) #remove point on land or no relative abundance
-Y <- Y[-out,]
-X <- X[-out,]
-
 write_feather(X, path = paste0(bluecloud.wd,"/data/X.feather"))
+
+# --- 4. Building the final target table "Y"
+Y <- target %>% 
+  select(contains("CC"))
 write_feather(Y, path = paste0(bluecloud.wd,"/data/Y.feather"))
 
-# ==================================== PART 4 ==================================
+# --- 5. Close connection
+dbDisconnect(db)
+
+# ==================================== PART 3 ==================================
 # Visual check on the target data relation to the environment
 
 source(file = "/home/aschickele/workspace/bluecloud descriptor/00_config.R")

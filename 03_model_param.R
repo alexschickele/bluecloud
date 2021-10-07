@@ -15,6 +15,17 @@ ma <- function(x, n = 10){stats::filter(x, rep(1 / n, n), sides = 2)}
 # --- Load data
 X0 <- read_feather(paste0(bluecloud.wd,"/data/X.feather"))
 Y0 <- read_feather(paste0(bluecloud.wd,"/data/Y.feather"))
+Y0 <- t(apply(Y0, 1, function(x){x/sum(x)}))
+Y0[is.na(Y0)] <- 0
+
+zz <- inner_join(Y0, X0, by = "Station")
+zz <- zz[complete.cases(zz),]
+
+write_feather(as.data.frame(Y0), paste0(bluecloud.wd,"/data/Y.feather"))
+write_feather(X0[,2:25], paste0(bluecloud.wd,"/data/X.feather"))
+
+X0 <- X0[complete.cases(X0),] #NA security
+Y0 <- Y0[complete.cases(X0),] #NA security
 N <- nrow(X0)
 
 # --- Initialize k-fold cross validation splits
