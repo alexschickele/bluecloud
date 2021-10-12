@@ -78,7 +78,26 @@ cluster_sort <- cluster_sort %>%
   inner_join(tmp)
 copy_to(db, cluster_sort, temporary = FALSE, na.rm = TRUE)
 
-# --- 7. Close connection
+# --- 7. Pre-calculate feature table from nearest non-NA values
+# To only query the station later and not extract during queries section
+X0 <- tbl(db, "locs") %>% collect()
+xy <- X0 %>% select(x = Longitude, y = Latitude)
+
+features <- stack(paste0(bluecloud.wd,"/data/features")) %>% 
+  readAll()
+
+sample_raster_NA <- function(r, xy){
+  apply(X = xy, MARGIN = 1, 
+        FUN = function(xy) r@data@values[which.min(replace(distanceFromPoints(r, xy), is.na(r), NA))])
+}
+sampled <- mclapply(features@layers, function(a_layer) sample_raster_NA(a_layer, xy), mc.cores = 10) %>% 
+  as.data.frame() %>% 
+  mutate(Station = X0$Station, .before = 1)
+X0 <- sampled
+names(X0) <- c("Station", names(features))
+copy_to(db, X0, temporary = FALSE, na.rm = TRUE)
+
+# --- 8. Close connection
 dbDisconnect(db)
 
 # ===================== PART 2 : querying database =============================
@@ -103,21 +122,23 @@ target <- target %>%
   summarise(reads = sum(readCount), .groups = "drop") %>% 
   pivot_wider(names_from = CC_ID, values_from = reads) %>% 
   left_join(tbl(db, "sum_station")) %>% 
-  mutate_at(.vars = vars(c(-Station, -Latitude, -Longitude, -sum_reads)), .funs = ~ . / sum_reads) %>%
-  collect()
+  mutate_at(.vars = vars(c(-Station, -Latitude, -Longitude, -sum_reads)), .funs = ~ . / sum_reads)
 
 # --- 3. Building the final feature table "X"
 # TO DO : Due to the coarse resolution of the features, environmental data are taken from nearest neighbor in case of NA
-feature0 <- stack(paste0(bluecloud.wd,"/data/features"))
-obs_xy <- target %>% 
-  select(c(Longitude, Latitude))
+X <- target %>% 
+  select(Station) %>% 
+  inner_join(tbl(db, "X0")) %>% 
+  select(-Station) %>% 
+  collect()
 
-X <- as.data.frame(raster::extract(feature0, obs_xy[,c("Longitude","Latitude")]))
 write_feather(X, path = paste0(bluecloud.wd,"/data/X.feather"))
 
 # --- 4. Building the final target table "Y"
 Y <- target %>% 
-  select(contains("CC"))
+  select(contains("CC")) %>% 
+  collect()
+Y <- Y/max(Y, na.rm = TRUE)
 write_feather(Y, path = paste0(bluecloud.wd,"/data/Y.feather"))
 
 # --- 5. Close connection

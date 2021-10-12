@@ -15,17 +15,15 @@ ma <- function(x, n = 10){stats::filter(x, rep(1 / n, n), sides = 2)}
 # --- Load data
 X0 <- read_feather(paste0(bluecloud.wd,"/data/X.feather"))
 Y0 <- read_feather(paste0(bluecloud.wd,"/data/Y.feather"))
-Y0 <- t(apply(Y0, 1, function(x){x/sum(x)}))
-Y0[is.na(Y0)] <- 0
 
-zz <- inner_join(Y0, X0, by = "Station")
-zz <- zz[complete.cases(zz),]
-
-write_feather(as.data.frame(Y0), paste0(bluecloud.wd,"/data/Y.feather"))
-write_feather(X0[,2:25], paste0(bluecloud.wd,"/data/X.feather"))
-
-X0 <- X0[complete.cases(X0),] #NA security
 Y0 <- Y0[complete.cases(X0),] #NA security
+X0 <- X0[complete.cases(X0),] #NA security
+
+Y0 <- Y0[,1:2]
+Y0 <- apply(as.matrix(Y0), 1, function(x){if(sum(x)>0){x = x/sum(x, na.rm = TRUE)} else {x = x}}) %>%
+  aperm(c(2,1)) %>%
+  as.data.frame()
+
 N <- nrow(X0)
 
 # --- Initialize k-fold cross validation splits
@@ -61,7 +59,7 @@ m <- mcmapply(FUN=mbtr_fit,
               lambda_leaves=HYPERPARAMETERS$LEARNING_RATE[hp]/100,
               n_q= as.integer(HYPERPARAMETERS$N_Q[hp]),
               val_path = paste0(bluecloud.wd,"/data/", cv),
-              early_stopping_rounds = as.integer(100),
+              early_stopping_rounds = as.integer(10),
               SIMPLIFY = FALSE,
               USE.NAMES = FALSE,
               mc.cores = min(c(MAX_CLUSTER, N_FOLD*nrow(HYPERPARAMETERS))))
@@ -117,12 +115,12 @@ for(cv in 1:N_FOLD){
 write_feather(HYPERPARAMETERS[best_hp,], paste0(bluecloud.wd,"/data/HYPERPARAMETERS.feather"))
 py_save_object(best_m, paste0(bluecloud.wd,"/data/m"), pickle = "pickle")
 
-# --- Remove temporary files
-data_file <- list.files(paste0(bluecloud.wd,"/data/"))
-for(hp in 1:nrow(HYPERPARAMETERS)){
-  rem_file <- data_file[grep(paste0("_",hp,"_"), data_file)]
-  file.remove(rem_file)
-}
+# # --- Remove temporary files
+# data_file <- list.files(paste0(bluecloud.wd,"/data/"))
+# for(hp in 1:nrow(HYPERPARAMETERS)){
+#   rem_file <- data_file[grep(paste0("_",hp,"_"), data_file)]
+#   file.remove(rem_file)
+# }
 
 while (dev.cur() > 1) dev.off()
 

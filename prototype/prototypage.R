@@ -1,3 +1,39 @@
+# --- Open carbon ncdf file
+nc <- nc_open(paste0(data.wd, "/data/environmental_data/dataset-carbon-rep-monthly_1634022472331.nc"))
+VAR <- names(nc$var)
+env_raw <- NULL
+
+for(i in 1:length(VAR)){
+  tmp <- ncvar_get(nc, VAR[i])
+  month_raw <- tmp[,,1:12]
+  for(y in seq(13,dim(tmp)[3],12)){
+    month_raw <- abind(month_raw, tmp[,,y:(y+11)], along = 4)
+  }
+  month_raw <- apply(month_raw, c(1,2,3), function(x){mean(x, na.rm = TRUE)})
+  env_raw <- abind(env_raw, month_raw, along = 4)
+}
+
+env_data <- abind(apply(env_raw, c(1,2,4), function(x){mean(x, na.rm = TRUE)}),
+                  apply(env_raw, c(1,2,4), function(x){max(x, na.rm = TRUE)-min(x, na.rm = TRUE)}),
+                  along = 3)
+env_data <- abind(env_data, array(NA, dim = c(360, 7, 6)), along = 2)
+var_names <- c(paste0(VAR,"_mean"), paste0(VAR, "_range"))
+
+# --- Creating raster stack
+r <- features[[1]]
+
+for (i in 1:length(var_names)){
+  if (i==1) {
+    r_env <- setValues(r, as.vector(env_data[,,i]))
+  } else {
+    tmp <- setValues(r, as.vector(env_data[,,i]))
+    r_env <- stack(r_env, tmp)
+  } #  end if
+} # end var_names loop
+
+names(r_env) <- var_names
+r_env <- flip(r_env, direction = 'y')
+
 
 ################################################################################
 # Load and work on metaG SQL database

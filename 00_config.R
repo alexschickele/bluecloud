@@ -41,11 +41,11 @@ CLUSTER <- "CC_995588" # selected protein family
 # --- Model specific parameters
 # Hyperparameters to test in the model (03 and 04)
 HYPERPARAMETERS <- data.frame(LEARNING_RATE = c(1e-2, 6e-3, 3e-3, 1e-3),
-                              N_Q = c(10, 20, 50, 100),
-                              MEAN_LEAF = c(10,20,30,50))
+                              N_Q = c(10, 10, 10, 10),
+                              MEAN_LEAF = c(5,10,20,30))
 
 NBOOST <- 10000 # maximum number of boosting rounds
-N_FOLD <- 3 # number of k-fold cross validation runs
+N_FOLD <- 5 # number of k-fold cross validation runs
 MAX_CLUSTER <- 36 # maximum number of clusters for parallel computing
 
 NBOOTSTRAP <- 5 # number of bootstrap rounds for script 05b

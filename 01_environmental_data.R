@@ -54,9 +54,9 @@ for(i in 1: length(VAR)){
     } # n month loop
     
     # --- Extract salinity for later MLD calculations
-    if(i == which(var_names == "salinity")){salinity_raw <- month_raw}
+    if(i == which(VAR == "salinity")){salinity_raw <- month_raw}
     # --- Extract temperature for later MLD calculations
-    if(i == which(var_names == "temperature")){
+    if(i == which(VAR == "temperature")){
       temperature_raw <- month_raw
       depth_raw <- ncvar_get(nc, "depth_bnds") %>% apply(2, mean)
       lat_raw <- lat_bnds <- ncvar_get(nc, "lat_bnds") %>% apply(2, mean)
@@ -78,7 +78,7 @@ env_data <- abind(apply(env_raw, c(1,2,4), function(x){mean(x, na.rm = TRUE)}),
                   apply(env_raw, c(1,2,4), function(x){max(x, na.rm = TRUE)-min(x, na.rm = TRUE)}),
                   along = 3)
 
-# --- Calculate MLD
+# --- Calculate pressure and density
 tmp <- array(data = NA, dim = dim(temperature_raw))
 
 lon <- apply(tmp, c(2,3,4), function(x){x <- lon_raw})
@@ -91,7 +91,7 @@ pressure_raw <- mcmapply(FUN = swPressure,
                          depth = depth, 
                          latitude = lat,
                          SIMPLIFY = TRUE,
-                         mc.cores = 5)
+                         mc.cores = 10)
 pressure_raw <- array(pressure_raw, dim = dim(tmp))
 density_raw <- mcmapply(FUN = swSigma,
                         salinity = salinity_raw,
@@ -100,10 +100,28 @@ density_raw <- mcmapply(FUN = swSigma,
                         longitude = lon,
                         latitude = lat,
                         SIMPLIFY = TRUE,
-                        mc.cores = 4)
+                        mc.cores = 3)
 density_raw <- array(density_raw, dim = dim(tmp))
+
+# --- Interpolating depth to 2m constant resolution
+depth_out <- seq(2,300, by = 2)
+interp_depth <- function(z){
+  if(length(which(!is.na(z))) >= 2){
+    z = approx(x = depth_raw[1:29], y = z[1:29], xout = depth_out)$y
+  } else {z = rep(NA, length(depth_out))}
+}
+
+temperature_raw <- apply(temperature_raw, c(1,2,4), interp_depth) %>% 
+  aperm(c(2,3,1,4))
+salinity_raw <- apply(salinity_raw, c(1,2,4), interp_depth) %>% 
+  aperm(c(2,3,1,4))
+density_raw <- apply(density_raw, c(1,2,4), interp_depth) %>% 
+  aperm(c(2,3,1,4))
+
+# --- Calculate MLD
 MLD <- apply(density_raw, c(1,2,4), function(x) {
-  mld(x = x, depth = depth_raw, ref.depths = 0:15, n.smooth = 2, k = 4)})
+  mld(x = x, depth = depth_out, ref.depths = 1:5, default.depth = 50,
+      n.smooth = 0, k = 2, criteria = c(0.03, 0.01))})
 
 # --- Add MLD to variables
 var_names <- c(var_names, "MLD_mean", "MLD_range")
