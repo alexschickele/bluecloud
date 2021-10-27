@@ -1,23 +1,10 @@
-
-#' Here we build the dataset of environmental variables using the World Ocean
-#' Atlas data. The variables to be defined are VAR and DEPTH.
+#' @concept building the dataset of environmental variables
+#' @source World Ocean Atlas data, Copernicus Marine Science, 'castr' package
 #' 
-#' TO DO LIST :
-#' - add the possibility of having the layer following the bottom
-#' - create the X matrix by loading tara ocean depth and coordinates : after
-#' the zoom with Pavla D.
-#' - add primary production data as well as potential data from Emile & Sakina
+#' @param data.wd path to the World Ocean Atlas clone on the complex server
+#' @param bluecloud.wd path to the bluecloud descriptor file
 #' 
-#' @param input.wd path to the World Ocean Atlas clone on the complex server
-#' @param output.wd path to the bluecloud descriptor file
-#' @param VAR list of environmental variables to extract from the ncdf files
-#' @param DEPTH dataframe(top, bottom) with the bathymetrical range to consider
-#' 
-#' @return a raster stack of environmental variables in the output directory
-#' @return a plot of the environmental variables extracted
-#' 
-
-# ============== PART 1 : get world ocean atlas data ===========================
+#' @return a raster stack of environmental variables in the bluecloud directory
 
 source(file = "/home/aschickele/workspace/bluecloud descriptor/00_config.R")
 
@@ -26,10 +13,9 @@ VAR <- list.files(paste0(data.wd,"/share/WOA/DATA"))
 var_names <- VAR # initializing names for the future list actually available
 env_raw <- NULL # for storing all env variable values
 
-if(DEPTH == "SUR"){
-  DEPTH <- data.frame(top = 0, bottom = 10) # TO IMPROVE
-}
+if(DEPTH == "SUR"){DEPTH <- data.frame(top = 0, bottom = 10)}
 
+# ============== PART 1 : collect world ocean atlas data =======================
 # --- Loading environmental variables
 for(i in 1: length(VAR)){
   sub_folder <- list.files(path = paste0(data.wd,"/share/WOA/DATA/",VAR[[i]],"/netcdf/"),
@@ -59,8 +45,8 @@ for(i in 1: length(VAR)){
     if(i == which(VAR == "temperature")){
       temperature_raw <- month_raw
       depth_raw <- ncvar_get(nc, "depth_bnds") %>% apply(2, mean)
-      lat_raw <- lat_bnds <- ncvar_get(nc, "lat_bnds") %>% apply(2, mean)
-      lon_raw <- lon_bnds <- ncvar_get(nc, "lon_bnds") %>% apply(2, mean)}
+      lat_raw <- ncvar_get(nc, "lat_bnds") %>% apply(2, mean)
+      lon_raw <- ncvar_get(nc, "lon_bnds") %>% apply(2, mean)}
     
     # --- Selecting the depth range
     depth_bnds <- ncvar_get(nc, "depth_bnds")
@@ -72,20 +58,13 @@ for(i in 1: length(VAR)){
   env_raw <- abind(env_raw, month_raw, along = 4)
 } # end i VAR loop
 
-# --- Calculate yearly mean and range
-var_names <- paste0(var_names, rep(c("_mean","_range"), each = length(var_names)))
-env_data <- abind(apply(env_raw, c(1,2,4), function(x){mean(x, na.rm = TRUE)}),
-                  apply(env_raw, c(1,2,4), function(x){max(x, na.rm = TRUE)-min(x, na.rm = TRUE)}),
-                  along = 3)
-
+# ==================== PART 2 : calculate MLD data =============================
 # --- Calculate pressure and density
 tmp <- array(data = NA, dim = dim(temperature_raw))
 
 lon <- apply(tmp, c(2,3,4), function(x){x <- lon_raw})
-lat <- apply(tmp, c(1,3,4), function(x){x <- lat_raw}) %>%
-  aperm(c(2,1,3,4))
-depth <- apply(tmp, c(1,2,4), function(x){x <- depth_raw}) %>%
-  aperm(c(2,3,1,4))
+lat <- apply(tmp, c(1,3,4), function(x){x <- lat_raw}) %>% aperm(c(2,1,3,4))
+depth <- apply(tmp, c(1,2,4), function(x){x <- depth_raw}) %>% aperm(c(2,3,1,4))
 
 pressure_raw <- mcmapply(FUN = swPressure,
                          depth = depth, 
@@ -111,30 +90,63 @@ interp_depth <- function(z){
   } else {z = rep(NA, length(depth_out))}
 }
 
-temperature_raw <- apply(temperature_raw, c(1,2,4), interp_depth) %>% 
-  aperm(c(2,3,1,4))
-salinity_raw <- apply(salinity_raw, c(1,2,4), interp_depth) %>% 
-  aperm(c(2,3,1,4))
-density_raw <- apply(density_raw, c(1,2,4), interp_depth) %>% 
-  aperm(c(2,3,1,4))
+density_raw <- apply(density_raw, c(1,2,4), interp_depth) %>% aperm(c(2,3,1,4))
 
-# --- Calculate MLD
+# --- Calculate MLD and add to existing data
 MLD <- apply(density_raw, c(1,2,4), function(x) {
-  mld(x = x, depth = depth_out, ref.depths = 1:5, default.depth = 50,
+  mld(x = x, depth = depth_out, ref.depths = 1:10, default.depth = 80,
       n.smooth = 0, k = 2, criteria = c(0.03, 0.01))})
+env_raw <- abind(env_raw, MLD, along = 4)
 
-# --- Add MLD to variables
-var_names <- c(var_names, "MLD_mean", "MLD_range")
-env_data <- abind(env_data,
-                  apply(MLD, c(1,2), function(x){mean(x, na.rm = TRUE)}),
-                  apply(MLD, c(1,2), function(x){max(x, na.rm = TRUE)-min(x, na.rm = TRUE)}),
-                  along = 3)
+# ============== PART 3 : collect CMEMS Chl data and calculate ZE ==============
+#--- Initializing
+sub_folder <- list.files(path = paste0(data.wd,"/share/cmems/"))
+sub_folder <- sub_folder[-grep("ACRI",sub_folder)]
 
+start <- as.numeric(substr(sub_folder[1],1,4))
+end <- as.numeric(substr(sub_folder[length(sub_folder)],1,4))
+
+chl_raw <- NULL
+
+# --- Loading CMEMS Chl data
+for(y in start:end){
+  cat(paste(Sys.time(), "--- Loading CHL for year :", y, "--- \n"))
+  month_raw <- NULL
+  for(m in 1:12){
+    nc <- nc_open(paste0(data.wd,"/share/cmems/",y,"_",m,".nc"))
+    r <- raster(ncvar_get(nc, "CHL")) %>% 
+      aggregate(fact = 24, fun=function(x, ...){mean(x, na.rm=TRUE)}) %>% 
+      as.matrix()
+    month_raw <- abind(month_raw, r, along = 3)
+  } # month loop
+  chl_raw <- abind(chl_raw, month_raw, along = 4)
+} # year loop
+
+# --- Calculate CHL, ZE and add to existing data
+CHL <- apply(chl_raw, c(1,2,3), function(x){mean(x, na.rm = TRUE)})
+CHL <- CHL[,180:1,]
+ZE <- apply(CHL, c(1,2,3), ze_from_surface_chla)
+
+env_raw <- abind(env_raw, CHL, ZE, along = 4)
+
+# ========= PART 4: calculating mean etc... and store it in a raster stack =====
 # --- Creating raster stack
 r <- raster(xmn = min(lon_raw)-0.5, xmx = max(lon_raw)+0.5,
             ymn = min(lat_raw)-0.5, ymx = max(lat_raw)+0.5,
             resolution = lon_raw[2]-lon_raw[1])
+var_names <- c(var_names, "MLD","CHL","ZE")
+var_names <- paste0(var_names, rep(c("mean","sd","med","mad","min","max"), each = length(var_names)))
 
+# --- Calculating the metrics
+env_data <- abind(apply(env_raw, c(1,2,4), function(x){mean(x, na.rm = TRUE)}),
+                  apply(env_raw, c(1,2,4), function(x){sd(x, na.rm = TRUE)}),
+                  apply(env_raw, c(1,2,4), function(x){median(x, na.rm = TRUE)}),
+                  apply(env_raw, c(1,2,4), function(x){mad(x, na.rm = TRUE)}),
+                  apply(env_raw, c(1,2,4), function(x){min(x, na.rm = TRUE)}),
+                  apply(env_raw, c(1,2,4), function(x){max(x, na.rm = TRUE)}),
+                  along = 3)
+
+# --- Save in a raster
 for (i in 1:length(var_names)){
   if (i==1) {
     r_env <- setValues(r, as.vector(env_data[,,i]))
@@ -146,52 +158,10 @@ for (i in 1:length(var_names)){
 
 names(r_env) <- var_names
 r_env <- flip(r_env, direction = 'y')
-
-# --- Saving resulting raster
-writeRaster(r_env, paste0(bluecloud.wd,"/data/features"), overwrite = TRUE)
 plot(r_env)
+writeRaster(r_env, paste0(bluecloud.wd,"/data/features"), overwrite = TRUE)
 
-# ================== Part 2 : add CMEMS Chl data to features ===================
-
-source(file = "/home/aschickele/workspace/bluecloud descriptor/00_config.R")
-
-#--- Initializing
-sub_folder <- list.files(path = paste0(data.wd,"/share/cmems/"))
-sub_folder <- sub_folder[-grep("ACRI",sub_folder)]
-
-start <- as.numeric(substr(sub_folder[1],1,4))
-end <- as.numeric(substr(sub_folder[length(sub_folder)],1,4))
-
-# --- Loading data
-for(y in start:end){
-  cat(paste(Sys.time(), "--- Loading CHL for year :", y, "--- \n"))
-  for(m in 1:12){
-    nc <- nc_open(paste0(data.wd,"/share/cmems/",y,"_",m,".nc"))
-    r <- raster(ncvar_get(nc, "CHL"))
-    r <- aggregate(r, fact = 24, fun=function(x, ...){mean(x, na.rm=TRUE)})
-    
-    if(m==1 & y==start){
-      chl_stack <- r
-    } else {
-      chl_stack <- addLayer(chl_stack, r)
-    }
-    
-  } # month loop
-} # year loop
-
-features <- stack(paste0(bluecloud.wd,"/data/features"))
-
-CHL <- t(mean(chl_stack, na.rm=TRUE))
-extent(CHL) <- extent(features)
-
-ZE <- ze_from_surface_chla(CHL)
-
-features <- synchroniseNA(addLayer(features, CHL_mean=CHL, ZE_mean=ZE))
-names(features)[19:20] <- c("CHL_mean","ZE_mean")
-
-writeRaster(features, paste0(bluecloud.wd,"/data/features"), overwrite = TRUE)
-
-# ============== PART 3 : add supplementary rasters to features ================
+# =============== PART 5 : add bathymetry and distance to coast ================
 
 source(file = "/home/aschickele/workspace/bluecloud descriptor/00_config.R")
 
@@ -211,8 +181,8 @@ writeRaster(dist, paste0(data.wd,"/data/environmental_data/distcoast"), overwrit
 
 # --- Adding raster to features
 features <- synchroniseNA(stack(features, bathy, dist))
-names(features[[21]]) <- "bathymetry"
-names(features[[22]]) <- "distcoast"
+names(features[[nlayers(features)-1]]) <- "bathymetry"
+names(features[[nlayers(features)]]) <- "distcoast"
 
 writeRaster(features, paste0(bluecloud.wd,"/data/features"), overwrite = TRUE)
 

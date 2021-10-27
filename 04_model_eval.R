@@ -1,4 +1,14 @@
-#' TO DO:
+#' @concept evaluate each validation fold with R2, MSE and RMSE and computes variable
+#' importance
+#' 
+#' @source MBTR python library
+#' 
+#' @param bluecloud.wd path to the bluecloud descriptor file
+#' @param HYPERPARAMETERS dataframe of hyperparameter to test in the model
+#' @param N_FOLD number of cross validation fold to perform
+#' @param MAX_CLUSTER maximum CPU clustering for parallel computing
+#' 
+#' @return a .pdf in /graphic with the Y and Y_hat per station and variable importance
 
 while (dev.cur() > 1) dev.off()
 source(file = "/home/aschickele/workspace/bluecloud descriptor/00_config.R")
@@ -12,6 +22,7 @@ X0 <- as.data.frame(read_feather(paste0(bluecloud.wd,"/data/X.feather")))
 # --- Initializing outputs
 r2 <- NULL
 mse <- NULL
+
 pal <- brewer.pal(ncol(Y0), "Spectral")
 pdf(paste0(bluecloud.wd,"/graphic/raw_eval.pdf"))
 par(bg="black", col="white", col.axis = "white", col.lab="white",col.main="white",
@@ -27,7 +38,7 @@ for(cv in 1:N_FOLD){
   
   # --- Do predictions on test set
   y_hat <- mbtr_predict(m0, X_val)
-  
+  print(range(apply(y_hat, 1, sum)))
   # --- Evaluate model
   r2 <- c(r2,calc_rsquared(as.matrix(Y_val), y_hat))
   se <- (Y_val-y_hat)^2
@@ -84,11 +95,11 @@ legend(x=ncol(X0)-0.2*ncol(X0), 100, legend = colnames(X0),
        title = "variables :", border="white", box.col = "white")
 
 # --- Clean up temporary files
-data_file <- list.files(paste0(bluecloud.wd,"/data/"))
-for(cv in 1:9){
-  rem_file <- data_file[grep(paste0(cv,"_"), data_file)]
-  file.remove(rem_file)
-}
+# data_file <- list.files(paste0(bluecloud.wd,"/data/"))
+# for(cv in 1:9){
+#   rem_file <- data_file[grep(paste0(cv,"_"), data_file)]
+#   file.remove(rem_file)
+# }
 
 while (dev.cur() > 1) dev.off()
 # END

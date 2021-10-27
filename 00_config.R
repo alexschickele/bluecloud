@@ -31,23 +31,22 @@ source(file = paste0(bluecloud.wd,"/function/bivarRasterPlot.R"))
 Sys.setenv(HDF5_USE_FILE_LOCKING="FALSE") # to be able to open .nc from complex
 
 # --- Data specific parameters
-MIN.GENE <- 3 # minimum of genes per cluster represented in the data summary
-MIN.STATION <- 10 # minimum presence of genes in the data summary
-
 DEPTH <- c("SUR") # selected depth for genomic data
-FILTER <- c("MMQQ") # selected size filter for genomic data
-CLUSTER <- "CC_995588" # selected protein family
+FILTER <- c("GGMM") # selected size filter for genomic data
+
+CLUSTER_SELEC <- list(MIN_STATIONS = 80, MIN_GENES = 5, MAX_GENES = 25, KEGG_p = "00190") # for cluster selection
+ENV_METRIC <- c("mean","sd","med","mad","dist","bathy")
 
 # --- Model specific parameters
 # Hyperparameters to test in the model (03 and 04)
-HYPERPARAMETERS <- data.frame(LEARNING_RATE = c(1e-2, 6e-3, 3e-3, 1e-3),
-                              N_Q = c(10, 10, 10, 10),
-                              MEAN_LEAF = c(5,10,20,30))
+HYPERPARAMETERS <- data.frame(LEARNING_RATE = c(1e-2, 1e-2, 1e-2, 1e-2),
+                              N_Q = c(5, 10, 20, 50),
+                              MEAN_LEAF = c(30, 40, 50, 60))
 
-NBOOST <- 10000 # maximum number of boosting rounds
+NBOOST <- 3000 # maximum number of boosting rounds
 N_FOLD <- 5 # number of k-fold cross validation runs
-MAX_CLUSTER <- 36 # maximum number of clusters for parallel computing
+MAX_CLUSTER <- 40 # maximum number of clusters for parallel computing
 
-NBOOTSTRAP <- 5 # number of bootstrap rounds for script 05b
+NBOOTSTRAP <- 20 # number of bootstrap rounds for script 05b
 
 # --- END

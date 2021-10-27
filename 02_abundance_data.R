@@ -1,12 +1,22 @@
-#' Here we build the relative abundance dataset with the TARA OCEAN data
-#' The output are
-#' 1. A relative abundance datasset : Ytargets * Nobs
-#' 2. The corresponding environmental features : Xfeatures * Nobs
+#' @concept building a RSQLite database from which we extract feature and
+#' target data
 #' 
-#' TO DO LIST:
-#' - check if its needed to extract feature data from nearest neighbor pixel
-#' - call the query parameters from the config file
-#' - create one database per filter size and name it dynamically ?
+#' @source TARA Ocean MetaG reads
+#' @source TARA Ocean Cluster of sequence similarity table, anotated by KEGG and Pathways
+#' @source TARA Ocean station locations
+#' @source Environmental data calculated from script 01_
+#' 
+#' @param bluecloud.wd path to the bluecloud descriptor file
+#' @param FILTER class size from which the database is build
+#' @param CLUSTER_SELEC list of filters to select clusters of appropriate size :
+#' i.e. minimum number of stations, minimum number of genes, maximum number of genes
+#' 
+#' @details the extraction of environmental variable corresponding to each station
+#' location is done from nearest neighbor in case of NA, due to the coarse 1° resolution
+#' 
+#' @return an RSQLite database containing all necessary data for the models and queries
+#' @return X : n_obs x n_env_variable .feather of features
+#' @return Y : n_obs x n_clusters .feather of targets
 
 # ================== PART 1 : CREATING THE DATABASE ============================
 # To perform fast queries on the data and extract the necessary for the target
@@ -15,17 +25,17 @@
 source(file = "/home/aschickele/workspace/bluecloud descriptor/00_config.R")
 
 # --- 1. Create and open RSQLite database
-unlink(paste0(bluecloud.wd, "/omic_data/omic_DB.sqlite"))
-db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/omic_DB.sqlite"))
+unlink(paste0(bluecloud.wd, "/omic_data/",FILTER,"_DB.sqlite"))
+db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/",FILTER,"_DB.sqlite"))
 
 # --- 2. Open "clusters" and sort by n_genes
 # We also create the "cluster_sort" table for future filtering of the DB
-clusters <- read_feather(paste0(bluecloud.wd, "/omic_data/CC_PFAM_taxo_80cutoff.feather")) %>% 
-  dplyr::select(c("Genes","PFAMs","CC_ID", "Class", "Order", "Family", "Genus"))
+clusters <- read_feather(paste0(bluecloud.wd, "/omic_data/CC_80_withallannot.feather")) %>% 
+  dplyr::select(c("Genes","CC", "COG_category","GOs", "KEGG_ko", "KEGG_Pathway", "KEGG_Module", "PFAMs", "Description"))
 copy_to(db, clusters, temporary = FALSE, overwrite = TRUE)
 
 cluster_sort <- tbl(db, "clusters") %>%
-  group_by(CC_ID) %>% 
+  group_by(CC) %>% 
   summarise(n_genes = n_distinct(Genes), 
             unknown_rate = sum(is.na(PFAMs))/n(),
             .groups = "drop")
@@ -64,11 +74,11 @@ data <- tbl(db, "reads") %>%
   inner_join(tbl(db, "clusters"), by = "Genes") %>% 
   left_join(tbl(db, "locs"), by = "Station")
 copy_to(db, data, temporary = FALSE, overwrite = TRUE)
-dbSendQuery(db, "create index by_cluster on data (CC_ID )")
+dbSendQuery(db, "create index by_cluster on data (CC)")
 
 # --- 6. Add "n_station", "sum_reads", "unknown_rate" to cluster_sort
 tmp <- tbl(db, "data") %>% 
-  group_by(CC_ID, Station) %>% 
+  group_by(CC, Station) %>% 
   summarise(n_reads = sum(readCount, na.rm = TRUE), .groups = "drop_last") %>%
   filter(n_reads > 0) %>% 
   summarise(n_station = n_distinct(Station), 
@@ -77,8 +87,14 @@ tmp <- tbl(db, "data") %>%
 cluster_sort <- cluster_sort %>% 
   inner_join(tmp)
 copy_to(db, cluster_sort, temporary = FALSE, na.rm = TRUE)
+dbSendQuery(db, "create index by_cluster_sort on cluster_sort (CC)")
 
-# --- 7. Pre-calculate feature table from nearest non-NA values
+# --- 7. Add correspondence Cluster - KEGG_Pathway
+KEGG_sort <- tbl(db, "clusters") %>% 
+  select("Genes", "CC", "KEGG_Pathway")
+copy_to(db, KEGG_sort, temporary = FALSE, na.rm = FALSE)
+
+# --- 8. Pre-calculate feature table from nearest non-NA values
 # To only query the station later and not extract during queries section
 X0 <- tbl(db, "locs") %>% collect()
 xy <- X0 %>% select(x = Longitude, y = Latitude)
@@ -97,7 +113,7 @@ X0 <- sampled
 names(X0) <- c("Station", names(features))
 copy_to(db, X0, temporary = FALSE, na.rm = TRUE)
 
-# --- 8. Close connection
+# --- 9. Close connection
 dbDisconnect(db)
 
 # ===================== PART 2 : querying database =============================
@@ -105,22 +121,30 @@ dbDisconnect(db)
 # i.e. number of genes and station per clusters
 
 source(file = "/home/aschickele/workspace/bluecloud descriptor/00_config.R")
-db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/omic_DB.sqlite"))
+db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/",FILTER,"_DB.sqlite"))
 
 # --- 1. Filter "data" by "cluster_sort"
-query <- tbl(db, "cluster_sort") %>% 
-  filter(n_station >= 80 & n_genes >= 5 & n_genes <= 25)
+# the "!!" are necessary for some unknown reasons
+# the KEGG_p query needs to be updated in order to avoid the copy = TRUE
+dbRemoveTable(db, "query")
+query <- dbGetQuery(db, paste('SELECT * FROM KEGG_sort WHERE KEGG_Pathway LIKE "%', CLUSTER_SELEC$KEGG_p, '%"', sep = "")) %>% 
+  group_by(CC) %>% 
+  summarise(KEGG_p = CLUSTER_SELEC$KEGG_p, n_KEGG = str_count(KEGG_Pathway, "ko")) %>% 
+  filter(n_KEGG == 1) %>% 
+  inner_join(tbl(db, "cluster_sort"), copy = TRUE) %>% 
+  filter(n_station >= !!CLUSTER_SELEC$MIN_STATIONS & n_genes >= !!CLUSTER_SELEC$MIN_GENES & n_genes <= !!CLUSTER_SELEC$MAX_GENES)
+copy_to(db, query, temporary = TRUE)
 
-target <- query %>% 
-  select(CC_ID) %>% 
+target <- tbl(db, "query") %>% 
+  select(CC) %>% 
   inner_join(tbl(db, "data")) %>% 
-  select(c("Genes", "CC_ID", "readCount", "Station", "Longitude", "Latitude"))
+  select(c("Genes", "CC", "readCount", "Station", "Longitude", "Latitude"))
 
 # --- 2. Reshape and normalize "data" by "sum_station"
 target <- target %>% 
-  group_by(CC_ID, Station, Latitude, Longitude) %>% 
+  group_by(CC, Station, Latitude, Longitude) %>% 
   summarise(reads = sum(readCount), .groups = "drop") %>% 
-  pivot_wider(names_from = CC_ID, values_from = reads) %>% 
+  pivot_wider(names_from = CC, values_from = reads) %>% 
   left_join(tbl(db, "sum_station")) %>% 
   mutate_at(.vars = vars(c(-Station, -Latitude, -Longitude, -sum_reads)), .funs = ~ . / sum_reads)
 
@@ -130,6 +154,7 @@ X <- target %>%
   select(Station) %>% 
   inner_join(tbl(db, "X0")) %>% 
   select(-Station) %>% 
+  select(contains(ENV_METRIC)) %>% 
   collect()
 
 write_feather(X, path = paste0(bluecloud.wd,"/data/X.feather"))
@@ -175,6 +200,5 @@ D2 <- sum(apply(Y0, 1, function(x){length(which(x>0.5))}))
 print(paste("number of obs where a gene represent more than 50% of relative abundance:", D2, "/", nrow(Y0)))
 
 while (dev.cur() > 1) dev.off()
-
 
 # --- END

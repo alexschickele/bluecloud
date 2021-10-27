@@ -1,9 +1,18 @@
-#' This script uses X.feather and Y.feather as input for a multivariate
-#' boosted regression tree model.
-#' The MBTR model is run from python via the reticulate package and the
-#' mbtr_function.py implementation
+#' @concept train Multivariate Boosted Regression Tree (MBTR) model and find the
+#' best set of hyperparameters
 #' 
-#' TO DO:
+#' @source MBTR python library
+#' 
+#' @param bluecloud.wd path to the bluecloud descriptor file
+#' @param HYPERPARAMETERS dataframe of hyperparameter to test in the model
+#' @param N_FOLD number of cross validation fold to perform
+#' @param NBOOST number of maximum boosting round to perform
+#' @param MAX_CLUSTER maximum CPU clustering for parallel computing
+#' 
+#' @return a .mbtr object containing the trained model per hyperparameter and
+#' cross validation fold
+#' @return a .pdf in /graphics containing the loss per boosting round for each
+#' cross validation fold and hyperparameter set
 
 while (dev.cur() > 1) dev.off()
 source(file = "/home/aschickele/workspace/bluecloud descriptor/00_config.R")
@@ -16,10 +25,6 @@ ma <- function(x, n = 10){stats::filter(x, rep(1 / n, n), sides = 2)}
 X0 <- read_feather(paste0(bluecloud.wd,"/data/X.feather"))
 Y0 <- read_feather(paste0(bluecloud.wd,"/data/Y.feather"))
 
-Y0 <- Y0[complete.cases(X0),] #NA security
-X0 <- X0[complete.cases(X0),] #NA security
-
-Y0 <- Y0[,1:2]
 Y0 <- apply(as.matrix(Y0), 1, function(x){if(sum(x)>0){x = x/sum(x, na.rm = TRUE)} else {x = x}}) %>%
   aperm(c(2,1)) %>%
   as.data.frame()
@@ -56,7 +61,7 @@ m <- mcmapply(FUN=mbtr_fit,
               min_leaf= HYPERPARAMETERS$MEAN_LEAF[hp],
               learning_rate=HYPERPARAMETERS$LEARNING_RATE[hp],
               lambda_weights=HYPERPARAMETERS$LEARNING_RATE[hp]/100,
-              lambda_leaves=HYPERPARAMETERS$LEARNING_RATE[hp]/100,
+              lambda_leaves=HYPERPARAMETERS$LEARNING_RATE[hp]*0,
               n_q= as.integer(HYPERPARAMETERS$N_Q[hp]),
               val_path = paste0(bluecloud.wd,"/data/", cv),
               early_stopping_rounds = as.integer(10),
