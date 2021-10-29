@@ -30,4 +30,4 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/bluecloud:latest
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/bluecloud_wp3_d2_shiny:latest
