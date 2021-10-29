@@ -30,6 +30,7 @@ RUN R -e "install.packages(c('DT'), repos='https://cran.r-project.org/')"
 RUN R -e "install.packages(c('tibble'), repos='https://cran.r-project.org/')"
 
 #R GitHub packages (with release in CRAN, but not re-published yet)
+RUN R -e "devtools::install_github('eblondel/ows4R')"
 
 #R GitHub packages (not yet released in CRAN)
  
