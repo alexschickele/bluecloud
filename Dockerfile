@@ -36,4 +36,4 @@ RUN R -e "install.packages(c('tibble'), repos='https://cran.r-project.org/')"
 EXPOSE 3838
 
 RUN apt-get install -y curl
-CMD ["R", "-e shiny::runApp('/srv/shiny/bluecloud',port=3838,host='0.0.0.0')"]
+CMD ["R", "-e shiny::runApp('/srv/shiny/bluecloud_wp3_d2_shiny',port=3838,host='0.0.0.0')"]
