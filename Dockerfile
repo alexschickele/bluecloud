@@ -32,13 +32,8 @@ RUN R -e "install.packages(c('tibble'), repos='https://cran.r-project.org/')"
 #R GitHub packages (with release in CRAN, but not re-published yet)
 
 #R GitHub packages (not yet released in CRAN)
-
-RUN git -C /root/ clone https://github.com/eblondel/geoflow-shiny.git && echo "OK!"
-RUN mkdir -p /srv/shiny/
-RUN ln -s /root/geoflow-shiny /srv/shiny/geoflow-shiny
  
 EXPOSE 3838
 
 RUN apt-get install -y curl
-CMD ["R", "-e shiny::runApp('/srv/shiny/geoflow-shiny',port=3838,host='0.0.0.0')"]
-#CMD ["R", "-e shiny::runApp('/srv/shiny/SdilabGenericPop')"]
+CMD ["R", "-e shiny::runApp('/srv/shiny/bluecloud_wp3_d2',port=3838,host='0.0.0.0')"]
