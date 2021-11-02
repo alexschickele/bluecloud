@@ -29,10 +29,21 @@ RUN R -e "install.packages(c('jsonlite'), repos='https://cran.r-project.org/')"
 RUN R -e "install.packages(c('DT'), repos='https://cran.r-project.org/')"
 RUN R -e "install.packages(c('tibble'), repos='https://cran.r-project.org/')"
 
+RUN R -e "install.packages(c('raster'), repos='https://cran.r-project.org/', dependencies=TRUE)"
+RUN R -e "install.packages(c('abind'), repos='https://cran.r-project.org/', dependencies=TRUE)"
+RUN R -e "install.packages(c('feather'), repos='https://cran.r-project.org/', dependencies=TRUE)"
+RUN R -e "install.packages(c('reticulate'), repos='https://cran.r-project.org/', dependencies=TRUE)"
+RUN R -e "install.packages(c('RColorBrewer'), repos='https://cran.r-project.org/', dependencies=TRUE)"
+RUN R -e "install.packages(c('parallel'), repos='https://cran.r-project.org/', dependencies=TRUE)"
+RUN R -e "install.packages(c('mvrsquared'), repos='https://cran.r-project.org/', dependencies=TRUE)"
+RUN R -e "install.packages(c('tidyverse'), repos='https://cran.r-project.org/', dependencies=TRUE)"
+RUN R -e "install.packages(c('RSQLite'), repos='https://cran.r-project.org/', dependencies=TRUE)"
+
 #R GitHub packages (with release in CRAN, but not re-published yet)
 RUN R -e "devtools::install_github('eblondel/ows4R')"
 
-#R GitHub packages (not yet released in CRAN)
+#Python Github libraries
+RUN python3 -m pip install -r git+https://github.com/alexschickele/bluecloud/function/MBTR
  
 EXPOSE 3838
 
