@@ -3,7 +3,6 @@ FROM rocker/r-ver:4.0.5
 MAINTAINER Alexandre Schickele "alexandre.schickele@imev-mer.fr"
 
 # system libraries of general use
-
 RUN apt-get update && apt-get install -y \
     sudo \
     libudunits2-dev \
@@ -16,6 +15,11 @@ RUN apt-get update && apt-get install -y \
     git 
    
 RUN apt-get update && apt-get upgrade -y
+
+#Python Github libraries
+RUN ln -s /usr/bin/python3 /usr/bin/python && \
+    ln -s /usr/bin/pip3 /usr/bin/pip
+RUN python3 -m pip install -r git+https://github.com/alexschickele/bluecloud/function/MBTR
 
 # install dependencies of the app
 
@@ -42,9 +46,6 @@ RUN R -e "install.packages(c('RSQLite'), repos='https://cran.r-project.org/', de
 #R GitHub packages (with release in CRAN, but not re-published yet)
 RUN R -e "devtools::install_github('eblondel/ows4R')"
 
-#Python Github libraries
-RUN python3 -m pip install -r git+https://github.com/alexschickele/bluecloud/function/MBTR
- 
 EXPOSE 3838
 
 RUN apt-get install -y curl
