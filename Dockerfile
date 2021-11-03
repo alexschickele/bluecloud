@@ -20,7 +20,7 @@ RUN apt-get update && apt-get upgrade -y
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential libpq-dev python3.8 python3-pip python3-setuptools python3-dev
 
 RUN pip install --upgrade pip
-RUN pip install --upgrade git+https://github.com/alexschickele/bluecloud/function/MBTR.git
+RUN pip install -e vcs+protocol://https://github.com/alexschickele/bluecloud/function/MBTR/#egg=pkg&subdirectory=pkg_dir
 
 # install dependencies of the app
 
