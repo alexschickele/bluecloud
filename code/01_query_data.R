@@ -3,7 +3,10 @@
 # Extract the necessary data for the model according to the pre-defined filters
 # i.e. number of genes and station per clusters
 
-query_data <- function(config_file = "/home/aschickele/workspace/bluecloud descriptor/00a_config.R"){
+query_data <- function(config_file = "/home/aschickele/workspace/bluecloud descriptor/code/00a_config.R",
+                       KEGG_p = "00190",
+                       CLUSTER_SELEC = list(MIN_STATIONS = 80, MIN_GENES = 5, MAX_GENES = 25),
+                       ENV_METRIC = c("mean","sd","med","mad","dist","bathy")){
   
   source(config_file)
   db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/",FILTER,"_DB.sqlite"))
@@ -11,9 +14,9 @@ query_data <- function(config_file = "/home/aschickele/workspace/bluecloud descr
   # --- 1. Filter "data" by "cluster_sort"
   # the "!!" are necessary for some unknown reasons
   # the KEGG_p query needs to be updated in order to avoid the copy = TRUE
-  query <- dbGetQuery(db, paste('SELECT * FROM KEGG_sort WHERE KEGG_Pathway LIKE "%', CLUSTER_SELEC$KEGG_p, '%"', sep = "")) %>% 
+  query <- dbGetQuery(db, paste('SELECT * FROM KEGG_sort WHERE KEGG_Pathway LIKE "%', KEGG_p, '%"', sep = "")) %>% 
     group_by(CC) %>% 
-    summarise(KEGG_p = CLUSTER_SELEC$KEGG_p, n_KEGG = str_count(KEGG_Pathway, "ko")) %>% 
+    summarise(KEGG_p = KEGG_p, n_KEGG = str_count(KEGG_Pathway, "ko")) %>% 
     filter(n_KEGG == 1) %>% 
     inner_join(tbl(db, "cluster_sort"), copy = TRUE) %>% 
     filter(n_station >= !!CLUSTER_SELEC$MIN_STATIONS & n_genes >= !!CLUSTER_SELEC$MIN_GENES & n_genes <= !!CLUSTER_SELEC$MAX_GENES)
@@ -52,5 +55,9 @@ query_data <- function(config_file = "/home/aschickele/workspace/bluecloud descr
   
   # --- 5. Close connection
   dbDisconnect(db)
-
+  print(paste("Number of stations :", nrow(X)))
+  print(paste("Number of environmental features :", ncol(X)))
+  print(paste("Number of gene cluster targets :", ncol(Y)))
+  
+  return(list(X=as.data.frame(X), Y=as.data.frame(Y)))
 } # end function
