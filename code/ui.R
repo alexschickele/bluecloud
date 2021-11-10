@@ -26,11 +26,11 @@ ui <- fluidPage(
            br(),
            fluidRow(
                splitLayout(cellWidths = c("50%", "50%"),
-                           plotOutput("legend_plot", height = "200px"),
-                           plotOutput("correlation_plot", height = "200px"))
+                           plotOutput("legend_plot", height = "300px"),
+                           plotOutput("correlation_plot", height = "300px"))
            ),
            br(),
-           plotOutput("target_map")
+           plotOutput("target_map", height = "300px")
         ) # mainPanel
     ) # sidebarLayout
 ) # ui

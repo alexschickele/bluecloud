@@ -57,6 +57,7 @@ colmat <- function(pal = brewer.pal(3, "Reds"),
 colmat_plot <- function(colormatrix, xlab, ylab){
   image(x = matrix(seq(1,length(colormatrix)), nrow = nrow(colormatrix), ncol = ncol(colormatrix), byrow = TRUE),
         col = colormatrix,
+        main = "Spatial map legend:",
         xlab = xlab, ylab = ylab,
         axes = FALSE)
 }

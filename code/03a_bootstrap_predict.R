@@ -18,8 +18,7 @@
 #' - think about a synthetic way to present the graphics
 
 model_proj <- function(config_file = "/home/aschickele/workspace/bluecloud descriptor/code/00a_config.R",
-                       ENV_METRIC = c("mean","sd","med","mad","dist","bathy"),
-                       sp_correlation = TRUE){
+                       ENV_METRIC = c("mean","sd","med","mad","dist","bathy")){
   
   source(config_file)
   HYPERPARAMETERS <- read_feather(paste0(bluecloud.wd,"/data/HYPERPARAMETERS.feather"))
@@ -131,7 +130,8 @@ cor_proj <- function(proj){
 map_proj <- function(proj, col, targetID = seq(1:nlayers(proj))){
   par(mar=c(2,2,2,1))
   for(i in targetID){
-    plot(proj[[i]], col = col[[i]], legend = FALSE, ylim=c(-90, 90), main= paste("target n°",i))
+    plot(proj[[i]], col = col[[i]], legend = FALSE, ylim=c(-90, 90), 
+         main= paste("Spatial relative abundance of target cluster n°",i))
     abline(h=c(66, 23, 0, -23, -66), lty = c("dotted","dotted","dashed","dotted","dotted"), lwd = c(1,1,1,1,1), col = "black")
   }
 }
