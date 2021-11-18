@@ -3,12 +3,12 @@
 # Extract the necessary data for the model according to the pre-defined filters
 # i.e. number of genes and station per clusters
 
-query_data <- function(config_file = "/home/aschickele/workspace/bluecloud descriptor/code/00a_config.R",
+query_data <- function(bluecloud.wd = bluecloud.wd,
                        KEGG_p = "00190",
                        CLUSTER_SELEC = list(MIN_STATIONS = 50, MIN_GENES = 5, MAX_GENES = 25),
                        ENV_METRIC = c("mean","sd","med","mad","dist","bathy")){
   
-  source(config_file)
+  source(paste0(bluecloud.wd,"/code/00a_config.R"))
   # --- For local database
   # db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/",FILTER,"_DB.sqlite"))
   
@@ -18,7 +18,7 @@ query_data <- function(config_file = "/home/aschickele/workspace/bluecloud descr
     host="postgresql-srv.d4science.org",
     dbname="bluecloud_demo2",
     user="bluecloud_demo2_u",
-    password="",
+    password="6a26c54a05ec5dede958a370ca744a",
     port=5432
   )
   

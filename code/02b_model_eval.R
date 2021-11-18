@@ -10,11 +10,11 @@
 #' 
 #' @return a .pdf in /graphic with the Y and Y_hat per station and variable importance
 
-model_eval <- function(config_file = "/home/aschickele/workspace/bluecloud descriptor/code/00a_config.R",
+model_eval <- function(bluecloud.wd = bluecloud.wd,
+                       by_target = FALSE,
                        var_importance = FALSE){
   
-  source(config_file)
-  
+  source(paste0(bluecloud.wd,"/code/00a_config.R"))
   # --- Loading data
   setwd(paste0(bluecloud.wd,"/data/"))
   m <- py_load_object("m", pickle = "pickle")
@@ -68,8 +68,11 @@ model_eval <- function(config_file = "/home/aschickele/workspace/bluecloud descr
   print(paste("--- model multidimensional RMSE is :", round(mean(sqrt(mse)),2), "+/-", round(sd(sqrt(mse)),2), "---"))
   
   # --- Print individual target fit
-  cat(paste("--- R2 for target", 1:ncol(Y0),":", round(apply(r2_tar, 2, mean),2),"+/-", round(apply(r2_tar, 2, sd),2), "--- \n"))
-  cat(paste("--- RMSE for target", 1:ncol(Y0),":", round(apply(sqrt(mse_tar), 2, mean),2),"+/-", round(apply(sqrt(mse_tar), 2, sd),2), "--- \n"))
+  if(by_target == TRUE){
+    cat(paste("--- R2 for target", 1:ncol(Y0),":", round(apply(r2_tar, 2, mean),2),"+/-", round(apply(r2_tar, 2, sd),2), "--- \n"))
+    cat(paste("--- RMSE for target", 1:ncol(Y0),":", round(apply(sqrt(mse_tar), 2, mean),2),"+/-", round(apply(sqrt(mse_tar), 2, sd),2), "--- \n"))
+  }
+
   
   # --- Calculating variable importance
   if(var_importance == TRUE){

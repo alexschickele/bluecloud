@@ -4,21 +4,19 @@
 
 ------------------------------------------------------------------------
 
-A. Schickele, P. Debeljack, L. Guidi, S. Ayata, J.O. Irisson
+**Authors:** A. Schickele, P. Debeljack, L. Guidi, S. Ayata, J.O. Irisson
 
 **Corresponding author/maintainer:** `alexandre.schickele@imev-mer.fr`
 
 # 1. Introduction:
 
-The genetic potential of plankton is influenced by the environmental context. In this notebook, we provide a series of tools to explore the relationship between the abundance of plankton genes and the environmental context in order to project the biogeography of key metabolic pathways and as yet unknown plankton genes.
+Planktonic organisms and by extension the composition and genetic potential of plankton in a given geographical area is influenced by the environmental context. In this notebook, we provide a series of tools to explore the relationship between the abundance of plankton genes and the environmental context, in order to project the biogeography of key metabolic pathways and as yet unknown plankton genes.
 
 This notebook is divided in two services, designed for expert and non-expert users, respectively:
 
--   service 1: R modeling framework. This service describes the entire modeling pipeline and codes. It is essentially designed for expert users with a strong genomic and modeling background.
+-   **service 1 - R modeling framework:** This service describes the entire modeling pipeline and codes. It is essentially designed for expert users with a strong genomic and modeling background. The codes are accessible from the BlueCloud infrastructure and may also be duplicated and modified locally. Service 1 is accessible at the following link: `https://`
 
--   service 2: R Shiny application. This services provides a ready-to-use tool to explore the biogeography of plankton genetic diversity related to key metabolic pathways. It is designed for general users and easily accessible at the following link: `https://`
-
-The code is accessible upon registration at: `https://`
+-   **service 2 - R Shiny application:** This services provides a ready-to-use tool to explore the biogeography of plankton genetic diversity related to key metabolic pathways. It is designed for general users and easily accessible at the following link: `https://`
 
 ------------------------------------------------------------------------
 
@@ -26,7 +24,7 @@ The code is accessible upon registration at: `https://`
 
 ## 2.1. Environmental data
 
-First, we retrieved a large set of annual climatologies from World Ocean Atlas and CMEMS. These data encompasses the 2005 to 2017 period, at 1° x 1° resolution and on a geographical domain ranging from -180 to +180°E and -90 to +90°. The environmental variables included are:
+First, we retrieved a large set of annual climatologies from World Ocean Atlas (<https://www.ncei.noaa.gov/products/world-ocean-atlas>) and CMEMS (<https://marine.copernicus.eu/>). These data encompasses the 2005 to 2017 period, at 1° x 1° resolution and on a geographical domain ranging from -180 to +180°E and -90 to +90°. The environmental variables included are:
 
 -   **AOU**: Apparent Oxygen Utilization
 
@@ -54,7 +52,7 @@ First, we retrieved a large set of annual climatologies from World Ocean Atlas a
 
 -   **distcoast**: calculated distance to the nearest coast
 
-For all environmental variables, we calculated the mean (`mean`), standard deviation (`sd`), median (`med`), mean average distance (`mad`), monthly minimum (`min`) and monthly maximum (`max`) over the 2005 - 2017 period.
+For all environmental variables, we calculated the mean (`mean`), standard deviation (`sd`), median (`med`), mean average distance (`mad`), monthly minimum (`min`) and monthly maximum (`max`) over the 2005 - 2017 period. **These data are accessible in the BlueCloud dataspace from Jupyter Hub.**
 
 ## 2.2. Genomic data
 
@@ -64,9 +62,7 @@ Second, we use MetaGenomic data retrieved from the Marine Atlas of Tara Ocean Un
 
 -   Genes are grouped by similarity of sequences into clusters, containing annotated genes (i.e. KEGG + pathways) and as yet unknown genes.
 
-In other words, we are able to model the biogeography of gene clusters related to a given metabolic pathways, and then the genes related to one of the clusters.
-
-[...]
+In other words, we are able to model the biogeography of gene clusters related to a given metabolic pathways, and then the genes related to one of the clusters. **These data are stored in a PostgreSQL database, accessed during the first step of the modeling pipeline.**
 
 ------------------------------------------------------------------------
 
@@ -74,7 +70,7 @@ In other words, we are able to model the biogeography of gene clusters related t
 
 ## 3.1. Framework structure
 
-### 3.1.1. Folder
+### 3.1.1. Folders
 
 The files are structured in different folders as following:
 
@@ -86,14 +82,44 @@ The files are structured in different folders as following:
 
 -   the `/data` folder corresponds to temporary data file written during the modeling process
 
-### 3.1.2. Functions
+### 3.1.2. Libraries installation
 
-The code is structured in four modeling steps each of them loading a configuration file: `00a_config.R`.
+In order to run this notebook, several R packages and Python libraries are necessary. In the case they are not already installed on the server, please follow the procedure below:
 
-The latter contains the list of packages, functions and general parameters necessary for each step. Below is a preview of some parameters that may be modified by an expert user:
+-   All R packages used are available on CRAN. Therefore, open a command prompt and execute the following code:
+
+```{bash}
+R -e "install.packages(c('raster','virtualspecies','abind','feather','reticulate','RColorBrewer','parallel','mvrsquared','tidyverse','RSQLite','RPostgreSQL','Shiny','Shinybusy'), repos='https://cran.r-project.org/', dependencies=TRUE)"
+```
+
+-   The Python library are not available on public repositories. Therefore, open a command prompt and execute the following code. Please note that the path need to correspond to the function/MBTR folder, the example corresponds to a Jupyter Hub instance on BlueCloud:
+
+```{bash}
+cd /workspace/VREFolders/PlanktonGenomics/Notebook_2/function/MBTR
+pip install .
+```
+
+### 3.1.3. Functions
+
+The code is structured in four modeling steps each of them using parameters stored in a config file : `00a_config.R`
+
+The latter contains the list of packages, functions and general parameters necessary for each step. More importantly, it contains the pathway to the pipeline root (`bluecloud.wd`) and where the environmental data are stored (`data.wd`). These parameters are called by each modeling steps, it is necessary to define them in the config_file at first.
+
+Here is an example for a Jupyter Hub instance on BlueCloud, where the pipeline has been copied to `/home/jovyan/bluecloud` :
 
 ```{r}
+setwd("/home/jovyan/bluecloud")
+source("./code/00a_config.R")
 
+# --- Input / Output directories
+data.wd <- "/home/jovyan/bluecloud"
+bluecloud.wd <- "/home/jovyan/dataspace/PlanktonGenomic_datasets/"
+
+```
+
+The config_file also contains parameters that may be modified by an expert user. They are already optimized for BlueCloud infrastructure, therefore we only recommend to modify them for local usage and when aware of the computing requirements:
+
+```{r}
 # --- Model specific parameters
 NBOOST <- 3000 # maximum number of boosting rounds
 N_FOLD <- 5 # number of k-fold cross validation runs
@@ -112,17 +138,15 @@ source("./code/02b_model_eval.R")
 source("./code/03a_bootstrap_predict.R")
 ```
 
-[...]
-
 ## 3.2. Selecting the genomic and environmental data
 
 ### 3.2.1. General principle
 
 Now that we described the data accessible by the notebook, we can select which part to select as input for the model using the `query_data()` function.
 
-This first step sends a query to an SQL database that contains the genomic data described in section 2.2. as well as the environmental data corresponding to each TARA Ocean station. The `query_data()` function extracts:
+This first step sends a query to a PostgreSQL database that contains the genomic data described in section 2.2. as well as the environmental data corresponding to each TARA Ocean station. The `query_data()` function extracts:
 
--   the genomic data corresponding to a user-defined metabolic pathway to model, its underlying gene clusters
+-   the genomic data corresponding to a user-defined metabolic pathway to model and its corresponding gene clusters
 
 -   the environmental data at the necessary TARA Ocean stations corresponding to the selected variables
 
@@ -130,7 +154,7 @@ The `query_data()` function is called as following:
 
 ```{r}
 
-query <- query_data(config_file = "./code/00a_config.R",
+query <- query_data(bluecloud.wd = bluecloud.wd,
                     KEGG_p = "00195",
                     CLUSTER_SELEC = list(MIN_STATIONS = 80, MIN_GENES = 5, MAX_GENES = 25),
                     ENV_METRIC = c("mean","sd","dist","bathy"))
@@ -140,7 +164,7 @@ query <- query_data(config_file = "./code/00a_config.R",
 
 The function take as user-defined input parameters:
 
--   `config_file`: the location of the config file `00a_config.R`
+-   `bluecloud.wd`: the location of the pipeline root. Accepts a pathway string if different than the pathway defined in the `00a_config.R` in section 3.1.3.
 
 -   `KEGG_p`: a string corresponding to the ID of the KEGG pathway to select. The ID are available at <https://www.genome.jp/kegg/pathway.html>
 
@@ -150,15 +174,15 @@ The function take as user-defined input parameters:
 
 ### 3.2.3. Outputs
 
-The function returns two outputs, written as `X.feather` and `Y.feather` tables in the `/data` folder and as a list of dataframes in the working environment (i.e. needed for the Shiny application; Service 2). The two output have the following format:
+The function returns three outputs, written as `X.feather`, `Y.feather` and `CC_desc.feather` tables in the `/data` folder and as a list of dataframes in the working environment (i.e. needed for the Shiny application; Service 2). The three output have the following format:
 
--   **X**: *n-environmental variables x n-stations* table of environmental values, later referred as "**features**"
+-   **X**: *n-environmental variables x m-stations* table of environmental values, later referred as "**features**"
 
--   **Y**: *n-clusters x n-stations* table of reads, later referred as "**targets**". To alleviate spurious model results, the reads are normalized per stations and re-scaled globally between 0 and 1. The latter will be referred as "**normalized abundances**".
+-   **Y**: *k-clusters x m-stations* table of reads, later referred as "**targets**". To alleviate spurious model results, the reads are normalized per stations and re-scaled globally between 0 and 1. The latter will be referred as "**normalized abundances**".
 
-In addition, the size of the outputs (i.e. number of stations, targets and features) are printed in the console at the end of the query.
+-   **CC_desc**: *k-clusters x 2 columns* table containing the ID of the cluster and their functional description. The latter corresponds to all annotated gene functions contained in a given gene cluster. If the cluster only contains unknown gene functions, it will be annotated as NA.
 
-[...]
+In addition, the size of the outputs (i.e. number of stations, targets and features) are printed in the console at the end of the query. If the query does not correspond to any clusters (e.g. number of gene range is too narrow), a message is printed in the console.
 
 ## 3.3. Training the model
 
@@ -166,15 +190,15 @@ In addition, the size of the outputs (i.e. number of stations, targets and featu
 
 The machine learning algorithm used in this notebook is based on a Python library (MBTR; see <https://mbtr.readthedocs.io/en/latest/>) and performs multivariate gradient boosting (i.e. several target modeled at once). The underlying Python implementation is invisible to the user.
 
-In line with best practices in machine learning, the `X.feather` and `Y.feather` tables retrieved from section 3.2. are split between a training set and an test set. The latter is performed using *n*-fold cross-validation splits: i.e. the data are split in *n*-equal size groups, *n*-models are trained on *n-1* splits, holding the last split for model evaluation only. The test split is different for each of the *n*-models.
+In line with best practices in machine learning, the `X.feather` and `Y.feather` tables retrieved from section 3.2. are split between a **training set** and a **test set**. The latter is performed using *n*-fold cross-validation splits: i.e. the data are split in *n*-equal sized groups, *n*-models are trained on *n-1* splits, holding the last split for model evaluation only. The test split is different for each of the *n*-models.
 
-In order to select the best model, we tested different set of hyperparameters, leading to one algorithm per cross-validation fold and set of hyperparameters. The fit of each algorithm is measure by a loss function at each boosting round. **The best model is selected according to the hyperparameters and number of boosting round that produced the minimum loss averaged between all cross-validation folds.**
+In order to select the best model, we tested different set of hyperparameters, leading to one algorithm per cross-validation fold and set of hyperparameters. The quality of fit of each algorithm is measured by a loss function at each boosting round. **The best model is selected according to the hyperparameters and number of boosting round that produced the minimum loss averaged between all cross-validation folds.**
 
 The model training and hyperparameters selection is called using the `model_run()` function:
 
 ```{r}
 
-run <- model_run(config_file = "./code/00a_config.R",
+run <- model_run(bluecloud.wd = bluecloud.wd,
                  HYPERPARAMETERS = data.frame(LEARNING_RATE = c(1e-2, 1e-2, 1e-2, 1e-2),
                                               N_Q = c(5, 10, 20, 50),
                                               MEAN_LEAF = c(30, 40, 50, 60)),
@@ -186,9 +210,9 @@ run <- model_run(config_file = "./code/00a_config.R",
 
 This function uses the following user-defined input parameters:
 
--   `config_file`: the location of the config file `00a_config.R`
+-   `bluecloud.wd`: the location of the pipeline root. Accepts a pathway string if different than the pathway defined in the `00a_config.R` in section 3.1.3.
 
--   `HYPERPARAMETERS`: numeric dataframe of hyperparameters to be tested. With `LEARNING_RATE` numeric vector of learning rates to test, `N_Q` integer vector of quantiles to use for tree splitting, `MEAN_LEAF` : minimum number of data per leaf (i.e. after splitting). For more detailed informations, see <https://mbtr.readthedocs.io/en/latest/mbtr.html#module-mbtr.mbtr>.
+-   `HYPERPARAMETERS`: numeric dataframe of hyperparameters to be tested. With `LEARNING_RATE` numeric vector of learning rates to test, `N_Q` integer vector of quantiles to use for tree splitting, `MEAN_LEAF` : minimum number of data per leaf (i.e. after splitting). For more detailed information, see <https://mbtr.readthedocs.io/en/latest/mbtr.html#module-mbtr.mbtr>. The pre-defined hyperparameters in this example already correspond to optimal parameters for the model, for most `query_data()` results.
 
 -   `relative`: if `TRUE`, the targets are calculated as relative abundance between each clusters. This option is better suited to explore the genomic composition of plankton.
 
@@ -198,13 +222,11 @@ Supplementary model input parameters can be found in the `00a_config.R` file as 
 
 ### **3.3.3. Outputs**
 
-The function returns two outputs, written as `m.pickle` and `HYPERPARAMETERS.feather` in the `/data folder`. The outputs are described hereafter:
+The function returns two outputs, written as `m.pickle` and `HYPERPARAMETERS.feather` in the `/data`folder. The outputs are described hereafter:
 
 -   `m.pickle`: output file from the MBTR library corresponding to the selected model.
 
 -   `HYPERPARAMETERS.feather`: dataframe of the same format as `HYPERPARAMETERS` input. However, only the line corresponding to the best set of hyperparameters is kept. A supplementary columns informing on the optimal boosting rounds has also been added.
-
-[...]
 
 ## 3.4. Evaluating the model
 
@@ -216,7 +238,8 @@ To evaluate the performance of our selected model, we call the `model_eval()` fu
 
 ```{r}
 
-eval <- model_eval(config_file = "./code/00a_config.R",
+eval <- model_eval(bluecloud.wd = bluecloud.wd,
+                   by_target = FALSE,
                    var_importance = FALSE)
 ```
 
@@ -224,7 +247,9 @@ eval <- model_eval(config_file = "./code/00a_config.R",
 
 This function takes the following parameters as input:
 
--   `config_file`: the location of the config file `00a_config.R`
+-   `bluecloud.wd`: the location of the pipeline root. Accepts a pathway string if different that the pathway defined in the `00a_config.R` in section 3.1.3.
+
+-   `by_target`: if `TRUE`, the `R2` and `mse` are also calculated by target to identify disparities among target fit and which target(s) are the best fitted.
 
 -   `var_importance`: if `TRUE`, the importance of each environmental variable to describe the distribution of genomic data is computed. This is done by counting the number of times each variable is used to split the trees. Please note that this features is time and computing intensive and should not be used by default for prototyping.
 
@@ -252,7 +277,8 @@ The spatial projections are calculated by the `model_proj()` function:
 
 ```{r}
 
-proj <- model_proj(config_file = "./code/00a_config.R",
+proj <- model_proj(bluecloud.wd = bluecloud.wd,
+                   data.wd = data.wd,
                    ENV_METRIC = c("mean","sd","med","mad","dist","bathy"))
 ```
 
@@ -262,13 +288,15 @@ Before describing the inputs and outputs of `model_proj()`, we need to understan
 
 -   the color saturation, that represents the different uncertainty levels (i.e. lower color saturation reflects high uncertainty between bootstrap runs).
 
-The `colmat()` function therefore builds a *n*-color level x *m*-saturation level matrix, with a unique index corresponding to each color x saturation combination. The projections retrieved from `model_proj()` do not represent the cluster abundance or uncertainty but the combination of both through this color x saturation index.
+The `colmat()` function therefore builds a *n*-color level x *m*-saturation level matrix, with a unique index corresponding to each *color x saturation* combination. The projections retrieved from `model_proj()` do not represent the cluster abundance or uncertainty but the combination of both through this color x saturation index.
 
 ### 3.5.2. Inputs
 
 The `model_proj()` function reads the `X.feather`, `Y.feather` and `HYPERPARAMETERS.feather` files written in section 3.2.3 and 3.3.3. respectively. In addition, it takes as input the following user-defined parameters:
 
--   `config_file`: the location of the config file `00a_config.R`
+-   `bluecloud.wd`: the location of the pipeline root. Accepts a pathway string if different that the pathway defined in the `00a_config.R` in section 3.1.3.
+
+-   `data.wd`: the location of the environmental data folder. Accepts a pathway string if different that the pathway defined in the `00a_config.R` in section 3.1.3.
 
 -   `ENV_METRIC`: a vector of strings containing the environmental variables to include in the features. The strings correspond to the variable names or format described in section 2.1. **To avoid spurious projections, please note that this parameter needs to contain the same variable names as in section 3.2.2. (i.e. the variables on which the model has been trained).**
 
@@ -282,11 +310,11 @@ The `model_proj()` function provides a series of outputs stored in a list and ne
 
 -   `cuty`: a numeric vector corresponding to the values of the different abundance levels
 
-<!-- -->
-
 -   `proj`: a raster stack with each layers containing the abundance x uncertainty projections for one target (i.e. gene cluster)
 
 -   `col`: a list of color vectors, each corresponding to the abundance x uncertainty index of one `proj$layer`. This output could be omitted and re-calculated from `col_matrix`, with unnecessary computing cost, however.
+
+-   `y_hat_m`: a *p-geographical pixel x t-target* abundance matrix averaged between the bootstrap runs. This table is used to calculate the spatial correlation between the abundance of each targets.
 
 ### 3.5.4. Graphical outputs
 
@@ -314,7 +342,12 @@ This function takes the `proj` and `col` objects from section 3.5.3. and a user 
 
 -   `targetID`: numeric vector of target numbers to plot. Accept one or several numeric values ranging from 1 to the maximum number of targets
 
-Finally, the `cor_proj()` function provide a spatial correlation plot of all targets, based on the pearson correlation coefficient. It takes the `proj` object as input.
+Finally, the `cor_proj()` function provide a spatial correlation plot of all targets, based on the pearson correlation coefficient. It takes the `y_hat_m` object as input.
+
+```{r}
+
+cor_proj(y_hat_m = proj$y_hat_m)
+```
 
 ------------------------------------------------------------------------
 

@@ -17,14 +17,14 @@
 #' - do more pretty graphics
 #' - think about a synthetic way to present the graphics
 
-model_proj <- function(config_file = "/home/aschickele/workspace/bluecloud descriptor/code/00a_config.R",
+model_proj <- function(bluecloud.wd = bluecloud.wd,
+                       data.wd = data.wd,
                        ENV_METRIC = c("mean","sd","med","mad","dist","bathy")){
   
-  source(config_file)
   HYPERPARAMETERS <- read_feather(paste0(bluecloud.wd,"/data/HYPERPARAMETERS.feather"))
   
   # --- Load files
-  features <- stack(paste0(bluecloud.wd,"/data/features"))
+  features <- stack(paste0(data.wd,"/features"))
   features <- features[[grep(paste(ENV_METRIC, collapse = "|"), names(features))]]
   Y0 <- as.data.frame(read_feather(paste0(bluecloud.wd,"/data/Y.feather")))
   X0 <- as.data.frame(read_feather(paste0(bluecloud.wd,"/data/X.feather")))

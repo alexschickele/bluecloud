@@ -28,7 +28,8 @@ setuptools.setup(
         'requests>=2.22.0',
         'lightgbm>=2.3.1',
         'pandas>=1.0.3',
-        'seaborn>=0.10.1'
+        'seaborn>=0.10.1',
+        'pyarrow>=6.0.1'
         ],
     python_requires='>=3.7',
 )
