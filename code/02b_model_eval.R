@@ -22,8 +22,8 @@ model_eval <- function(config_file = "/home/aschickele/workspace/bluecloud descr
   X0 <- as.data.frame(read_feather(paste0(bluecloud.wd,"/data/X.feather")))
   
   # --- Initializing outputs
-  r2 <- NULL
-  mse <- NULL
+  r2 <- mse <- NULL
+  r2_tar <- mse_tar <- matrix(NA, ncol = ncol(Y0), nrow = N_FOLD)
   
   pal <- brewer.pal(ncol(Y0), "Spectral")
   par(bg="black", col="white", col.axis = "white", col.lab="white",col.main="white",
@@ -39,10 +39,16 @@ model_eval <- function(config_file = "/home/aschickele/workspace/bluecloud descr
     # --- Do predictions on test set
     y_hat <- mbtr_predict(m0, X_val)
     
-    # --- Evaluate model
+    # --- Evaluate model fit
     r2 <- c(r2,calc_rsquared(as.matrix(Y_val), y_hat))
     se <- (Y_val-y_hat)^2
     mse <- c(mse, mean(as.matrix(se), na.rm=TRUE))
+    
+    # --- Evaluate individual target fit
+    for(t in 1:ncol(Y0)){
+      r2_tar[cv,t] <- calc_rsquared(as.matrix(Y_val)[,t], y_hat[,t])
+      mse_tar[cv,t] <- mean(as.matrix(Y_val[,t]-y_hat[,t])^2, na.rm = TRUE)
+    }
   
     # --- Plot prediction against test set
     plot(Y_val[,1], type='l', ylim = c(0,1), ylab = "relative abundance", xlab = "obs", col="black",
@@ -56,9 +62,14 @@ model_eval <- function(config_file = "/home/aschickele/workspace/bluecloud descr
            title = "tar. nb. :", border="white", box.col = "white")
   } # k-fold cv  loop
   
+  # --- Print model fit ---
   print(paste("--- model multidimensional R-squarred is :", round(mean(r2),2), "+/-", round(sd(r2),2), "---"))
   print(paste("--- model multidimensional MSE is :", round(mean(mse),2), "+/-", round(sd(mse),2), "---"))
   print(paste("--- model multidimensional RMSE is :", round(mean(sqrt(mse)),2), "+/-", round(sd(sqrt(mse)),2), "---"))
+  
+  # --- Print individual target fit
+  cat(paste("--- R2 for target", 1:ncol(Y0),":", round(apply(r2_tar, 2, mean),2),"+/-", round(apply(r2_tar, 2, sd),2), "--- \n"))
+  cat(paste("--- RMSE for target", 1:ncol(Y0),":", round(apply(sqrt(mse_tar), 2, mean),2),"+/-", round(apply(sqrt(mse_tar), 2, sd),2), "--- \n"))
   
   # --- Calculating variable importance
   if(var_importance == TRUE){

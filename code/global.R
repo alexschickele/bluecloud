@@ -1,5 +1,8 @@
 message("load global functions")
 
+library(shiny)
+library(shinybusy)
+
 source("00a_config.R")
 source("01_query_data.R")
 source("02a_model_param.R")

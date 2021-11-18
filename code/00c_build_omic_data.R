@@ -22,11 +22,21 @@
 # To perform fast queries on the data and extract the necessary for the target
 # Adapted to the final data layout
 
-source(file = "/home/aschickele/workspace/bluecloud descriptor/00_config.R")
+source(file = "./code/00a_config.R")
 
-# --- 1. Create and open RSQLite database
-unlink(paste0(bluecloud.wd, "/omic_data/",FILTER,"_DB.sqlite"))
-db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/",FILTER,"_DB.sqlite"))
+# --- 1. Create and open RSQLite database on Marie
+# unlink(paste0(bluecloud.wd, "/omic_data/",FILTER,"_DB.sqlite"))
+# db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/",FILTER,"_DB.sqlite"))
+
+# --- 1B. Create and open RPostgreSQL database on BlueCloud
+db <- dbConnect(
+  drv=PostgreSQL(),
+  host="postgresql-srv.d4science.org",
+  dbname="bluecloud_demo2",
+  user="bluecloud_demo2_u",
+  password="",
+  port=5432
+)
 
 # --- 2. Open "clusters" and sort by n_genes
 # We also create the "cluster_sort" table for future filtering of the DB
@@ -34,10 +44,10 @@ clusters <- read_feather(paste0(bluecloud.wd, "/omic_data/CC_80_withallannot.fea
   dplyr::select(c("Genes","CC", "COG_category","GOs", "KEGG_ko", "KEGG_Pathway", "KEGG_Module", "PFAMs", "Description"))
 copy_to(db, clusters, temporary = FALSE, overwrite = TRUE)
 
-cluster_sort <- tbl(db, "clusters") %>%
-  group_by(CC) %>% 
-  summarise(n_genes = n_distinct(Genes), 
-            unknown_rate = sum(is.na(PFAMs))/n(),
+cluster_sort <- tbl(db, "clusters") %>% 
+  dplyr::group_by(CC) %>% 
+  dplyr::summarise(n_genes = n_distinct(Genes), 
+            # unknown_rate = sum(is.na(PFAMs))/n(), #NOT WORKING WITH PostgreSQL !!
             .groups = "drop")
 
 # --- 3. Open "reads" and filter according to n_genes
@@ -49,8 +59,8 @@ reads <- vroom(file = paste0(bluecloud.wd, "/omic_data/SMAGs-v1.cds.95.mg.matrix
   pivot_longer(!Genes, names_to = "code", values_to = "readCount") %>% 
   mutate(code = paste0("00", code),
          Station = str_sub(code, -13, -11)) %>% 
-  select(-code) %>% 
-  inner_join(select(clusters, "Genes"))
+  dplyr::select(-code) %>% 
+  inner_join(dplyr::select(clusters, "Genes"))
 copy_to(db, reads, temporary = FALSE, overwrite = TRUE)
 
 # --- 4. Open "locs" and calculate sum_reads by station
@@ -65,7 +75,7 @@ sum_station <- tbl(db, "reads") %>%
   group_by(Station) %>% 
   summarise(sum_reads = sum(readCount, na.rm = TRUE), .groups = "drop") %>% 
   left_join(tbl(db, "locs"), by = "Station") %>% 
-  select("Station","sum_reads")
+  dplyr::select("Station","sum_reads")
 copy_to(db, sum_station, temporary = FALSE, overwrite = TRUE)
 
 # --- 5. Join "reads", "clusters" and "locs" into "data"
@@ -74,7 +84,8 @@ data <- tbl(db, "reads") %>%
   inner_join(tbl(db, "clusters"), by = "Genes") %>% 
   left_join(tbl(db, "locs"), by = "Station")
 copy_to(db, data, temporary = FALSE, overwrite = TRUE)
-dbSendQuery(db, "create index by_cluster on data (CC)")
+# dbSendQuery(db, "create index by_cluster on data (CC)")
+dbSendQuery(db, 'CREATE INDEX by_cluster ON public.data ("CC")')
 
 # --- 6. Add "n_station", "sum_reads", "unknown_rate" to cluster_sort
 tmp <- tbl(db, "data") %>% 
@@ -87,12 +98,13 @@ tmp <- tbl(db, "data") %>%
 cluster_sort <- cluster_sort %>% 
   inner_join(tmp)
 copy_to(db, cluster_sort, temporary = FALSE, na.rm = TRUE)
-dbSendQuery(db, "create index by_cluster_sort on cluster_sort (CC)")
+dbSendQuery(db, 'CREATE INDEX by_cluster_sort ON public.cluster_sort ("CC")')
 
 # --- 7. Add correspondence Cluster - KEGG_Pathway
-KEGG_sort <- tbl(db, "clusters") %>% 
-  select("Genes", "CC", "KEGG_Pathway")
-copy_to(db, KEGG_sort, temporary = FALSE, na.rm = FALSE)
+kegg_sort <- tbl(db, "clusters") %>% 
+  select("Genes", "CC", "KEGG_Pathway") %>% 
+  rename(kegg_pathway = KEGG_Pathway) #Otherwise I cannot do the query() in the next script !! ... on BlueCLoud postgresql
+copy_to(db, kegg_sort, temporary = FALSE, na.rm = FALSE)
 
 # --- 8. Pre-calculate feature table from nearest non-NA values
 # To only query the station later and not extract during queries section

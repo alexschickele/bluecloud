@@ -105,7 +105,7 @@ model_proj <- function(config_file = "/home/aschickele/workspace/bluecloud descr
   proj <- synchroniseNA(stack(features[[1]], proj))[[-1]]
   names(proj) <- paste(1:ncol(y_hat_m))
   
-  return(list(proj = proj, col_matrix = col_matrix, col = col, cutx = cutx, cuty = cuty))
+  return(list(proj = proj, col_matrix = col_matrix, col = col, cutx = cutx, cuty = cuty, y_hat_m = y_hat_m))
 } # end function
 
 # ==================  PART 3 : plotting projections ============================
@@ -118,12 +118,16 @@ legend_proj <- function(col_matrix, cutx, cuty){
 }
 
 # --- Plot the correlation ---
-cor_proj <- function(proj){
+cor_proj <- function(y_hat_m){
   par(mar = c(2,2,3,5))
-  proj_cor <- layerStats(proj, 'pearson', na.rm = TRUE)
-  proj_cor <- raster(proj_cor[[1]], xmn = 0.5, ymn = 0.5, xmx  = nlayers(proj)+0.5, ymx = nlayers(proj)+0.5)
-  plot(proj_cor, col = brewer.pal(10, "RdBu"), main = "pair-wise correlation")
-  abline(h = seq(0:nlayers(proj))+0.5, v = seq(0:nlayers(proj))+0.5)
+  proj_cor <- cor(y_hat_m) %>% 
+    raster(xmn = 0.5, ymn = 0.5, xmx = ncol(y_hat_m)+0.5, ymx = ncol(y_hat_m)+0.5)
+  proj_cor <- flip(proj_cor, direction = "y") %>%
+    plot(col = brewer.pal(10, "RdBu"), main = "pair-wise correlation", axes = FALSE)
+  
+  axis(side = 1, at = seq(0,ncol(y_hat_m),1), labels = seq(0,ncol(y_hat_m),1))
+  axis(side = 2, at = seq(0,ncol(y_hat_m),1), labels = seq(0,ncol(y_hat_m),1))
+  grid(ncol(y_hat_m), lwd = 2, col = "white", lty = "solid")
 }
 
 # --- Plot the maps ---

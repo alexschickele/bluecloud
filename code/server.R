@@ -19,16 +19,22 @@ server <- function(input, output) {
   # --- PART 1 : querying the database and displaying data size ---
   query <- reactive({
     message("--- querying database ---")
-    query_data(KEGG_p = input$pathway)
+    show_modal_spinner(spin = "circle", color = "#00cccc", text = "Step 1/3 : Extracting the data. This may take a few seconds...")
+    df <- query_data(KEGG_p = input$pathway)
+    remove_modal_spinner()
+    return(df)
   }) # end event
   
   output$input_size <- renderUI({
     df <- req(query())
     message("--- display output df ---")
-    nstations = paste("Number of stations :", nrow(df$X))
-    nfeatures = paste("Number of features :", ncol(df$X))
-    ntargets = paste("Number of targets :", ncol(df$Y))
-    HTML(paste(nstations, nfeatures, ntargets, sep = '<br/>'))
+    if(nrow(df$X!=0)){
+      nstations = paste("Number of TARA Ocean stations :", nrow(df$X))
+      nfeatures = paste("Number of environmental variables (i.e. features) :", ncol(df$X))
+      ntargets = paste("Number of gene clusters (i.e. targets) :", ncol(df$Y))
+      HTML(paste(nstations, nfeatures, ntargets, sep = '<br/>'))
+    } else {HTML("STOP: the query has no result. Try to increase the gene range or minimum number of stations")}
+    
   }) #end output
   
   # --- PART 2 : run the model learning ---
@@ -40,7 +46,9 @@ server <- function(input, output) {
   run <- observeEvent(query_time(), {
     req(query_time())
     message("--- running model learning ---")
+    show_modal_spinner(spin = "circle", color = "#00cccc", text = "Step 2/3 : Calibration of the model. This may take a few minutes...")
     model_run()
+    remove_modal_spinner()
   }) # end event
   
   # --- PART 3 : run the projection calculations ---
@@ -52,10 +60,13 @@ server <- function(input, output) {
   proj <- eventReactive(run_time(), {
     req(run_time())
     message("--- building projections ---")
-    model_proj()
+    show_modal_spinner(spin = "circle", color = "#00cccc", text = "Step 3/3 : Building spatial projections. This may take a few minutes...")
+    p <- model_proj()
+    remove_modal_spinner()
+    return(p)
   }) # end event
   
-  # --- FINAL OUTPUTS : fix legend + dynamic maps
+  # --- FINAL OUTPUTS : fixed legend + dynamic maps
   output$legend_plot <- renderPlot({
     p <- req(proj())
     message("--- plotting legend")
@@ -66,7 +77,7 @@ server <- function(input, output) {
     req(input$do_cor)
     p <- req(proj())
     message("--- plotting spatial correlations ---")
-    cor_proj(proj = p$proj)
+    cor_proj(y_hat_m = p$y_hat_m)
   })
   
   output$SliderWidget <- renderUI({
@@ -81,6 +92,13 @@ server <- function(input, output) {
     message("--- selecting target map")
     map_proj(proj = p$proj, col = p$col, targetID = input$map_nb)
   })
+  
+  output$target_description <- renderUI({
+    req(proj())
+    df <- req(query())
+    message("--- display output description ---")
+    HTML(paste("The plankton gene cluster displayed above are related to the following functions :", df$CC_desc[input$map_nb,2], sep = '<br/>'))
+  }) #end output
 
 } # end server
 

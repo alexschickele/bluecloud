@@ -12,6 +12,7 @@ library(parallel) # in shiny
 library(mvrsquared) #in shiny
 library(tidyverse) # in shiny
 library(RSQLite) # in shiny
+library(RPostgreSQL) # in shiny
 
 # used only in step 0
 library(ncdf4)
