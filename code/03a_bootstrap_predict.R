@@ -17,8 +17,8 @@
 #' - do more pretty graphics
 #' - think about a synthetic way to present the graphics
 
-model_proj <- function(bluecloud.wd = bluecloud.wd,
-                       data.wd = data.wd,
+model_proj <- function(bluecloud.wd = "/home/jovyan/bluecloud",
+                       data.wd = "/home/jovyan/dataspace/PlanktonGenomic_datasets/",
                        ENV_METRIC = c("mean","sd","med","mad","dist","bathy")){
   
   HYPERPARAMETERS <- read_feather(paste0(bluecloud.wd,"/data/HYPERPARAMETERS.feather"))

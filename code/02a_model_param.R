@@ -14,14 +14,13 @@
 #' @return a .pdf in /graphics containing the loss per boosting round for each
 #' cross validation fold and hyperparameter set
 
-model_run <- function(bluecloud.wd = bluecloud.wd,
+model_run <- function(bluecloud.wd = "/home/jovyan/bluecloud",
                       HYPERPARAMETERS = data.frame(LEARNING_RATE = c(1e-2, 1e-2, 1e-2, 1e-2),
                                                    N_Q = c(5, 10, 20, 50),
                                                    MEAN_LEAF = c(30, 40, 50, 60)),
                       relative = TRUE,
                       verbose = TRUE){
   
-  source(paste0(bluecloud.wd,"/code/00a_config.R"))
   # --- Custom functions
   kfold <- function(x,n) split(x, cut(seq_along(x), n, labels = FALSE))
   ma <- function(x, n = 10){stats::filter(x, rep(1 / n, n), sides = 2)}

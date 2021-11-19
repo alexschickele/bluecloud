@@ -20,8 +20,8 @@ library(RPostgreSQL) # in shiny
 # library(vroom)
 
 # --- Input / Output directories
-data.wd <- "/home/aschickele/complex"
-bluecloud.wd <- "/home/aschickele/workspace/bluecloud descriptor"
+bluecloud.wd <- "/home/jovyan/bluecloud"
+data.wd <- "/home/jovyan/dataspace/PlanktonGenomic_datasets/"
 
 # --- Custom functions
 source_python(paste0(bluecloud.wd,"/function/mbtr_function.py"))

@@ -107,13 +107,19 @@ The latter contains the list of packages, functions and general parameters neces
 
 Here is an example for a Jupyter Hub instance on BlueCloud, where the pipeline has been copied to `/home/jovyan/bluecloud` :
 
+-   First modify 00a_config.R according to:
+
+```{r}
+# --- Input / Output directories
+bluecloud.wd <- bluecloud_dir <- "/home/jovyan/bluecloud"
+data.wd <- data_dir <- "/home/jovyan/dataspace/PlanktonGenomic_datasets/"
+```
+
+-   Once the path are properly indicated in the config file, we can run the following command:
+
 ```{r}
 setwd("/home/jovyan/bluecloud")
 source("./code/00a_config.R")
-
-# --- Input / Output directories
-data.wd <- "/home/jovyan/bluecloud"
-bluecloud.wd <- "/home/jovyan/dataspace/PlanktonGenomic_datasets/"
 
 ```
 
@@ -154,7 +160,7 @@ The `query_data()` function is called as following:
 
 ```{r}
 
-query <- query_data(bluecloud.wd = bluecloud.wd,
+query <- query_data(bluecloud.wd = "/home/jovyan/bluecloud",
                     KEGG_p = "00195",
                     CLUSTER_SELEC = list(MIN_STATIONS = 80, MIN_GENES = 5, MAX_GENES = 25),
                     ENV_METRIC = c("mean","sd","dist","bathy"))
@@ -198,7 +204,7 @@ The model training and hyperparameters selection is called using the `model_run(
 
 ```{r}
 
-run <- model_run(bluecloud.wd = bluecloud.wd,
+run <- model_run(bluecloud.wd = "/home/jovyan/bluecloud",
                  HYPERPARAMETERS = data.frame(LEARNING_RATE = c(1e-2, 1e-2, 1e-2, 1e-2),
                                               N_Q = c(5, 10, 20, 50),
                                               MEAN_LEAF = c(30, 40, 50, 60)),
@@ -238,7 +244,7 @@ To evaluate the performance of our selected model, we call the `model_eval()` fu
 
 ```{r}
 
-eval <- model_eval(bluecloud.wd = bluecloud.wd,
+eval <- model_eval(bluecloud.wd = "/home/jovyan/bluecloud",
                    by_target = FALSE,
                    var_importance = FALSE)
 ```
@@ -277,8 +283,8 @@ The spatial projections are calculated by the `model_proj()` function:
 
 ```{r}
 
-proj <- model_proj(bluecloud.wd = bluecloud.wd,
-                   data.wd = data.wd,
+proj <- model_proj(bluecloud.wd = "/home/jovyan/bluecloud",
+                   data.wd = "/home/jovyan/dataspace/PlanktonGenomic_datasets/",
                    ENV_METRIC = c("mean","sd","med","mad","dist","bathy"))
 ```
 
@@ -332,7 +338,7 @@ The `map_proj()` function plots the targets called by the user as following:
 ```{r}
 
 # Display plot for all targets:
-map_proj(proj = proj$proj, col = proj$col, targetID = seq(1:nlayers(proj)))
+map_proj(proj = proj$proj, col = proj$col, targetID = seq(1:nlayers(proj$proj)))
 
 # Display plot a specific target (e.g. target n°1):
 map_proj(proj = proj$proj, col = proj$col, targetID = 1)
@@ -352,3 +358,59 @@ cor_proj(y_hat_m = proj$y_hat_m)
 ------------------------------------------------------------------------
 
 # 4. **Service 2:** R Shiny application for non-expert users
+
+## 4.1. Application structure
+
+The structure, or code pipeline, behind the Shiny application follows the R pipeline described in section 3. However, the user-defined options have been simplified to allow non-expert to explore the biogeography of metabolic pathways.
+
+The application can be manually executed (e.g. on a local copy of the service files) with the `app.R` file. It will execute the `ui.R`, `server.R` and `global.R` in the `/code` folder.
+
+**As a description of the different steps and interactions is displayed on the left panel of the application and because we already provided detailed description of these steps in section 3, we only recall the main steps used by the application in this document.**
+
+## 4.2. Selecting the metabolic pathway
+
+### 4.2.1. Inputs
+
+In the left panel, the user has the possibility to chose one metabolic pathway to model. Once the pathway is chosen, the application will dynamically execute the step related to section 3.2.
+
+### 4.2.2. Outputs
+
+The size of the selected data is displayed on the top of the output panels. The following parameters are shown to the user:
+
+-   Number of TARA Ocean stations
+
+-   Number of environmental features
+
+-   Number of gene cluster targets
+
+## 4.3. Running the model
+
+This step is manually executed when the user selects the `RUN THE MODEL` button. The application will execute the step related to section 3.3.
+
+A waiting screen will be displayed while the model is calibrated using default parameters.
+
+## 4.4. Spatial projections
+
+### 4.4.1. Inputs
+
+First, the bootstrap calculations related to spatial projections (i.e. section 3.3.) will be dynamically executed after the section 4.3. The inputs correspond to the outputs of the section 4.3., that are hidden to the user.
+
+The user is advised by a new message on the waiting screen.
+
+Once the spatial projections are calculated, the user will be able to select the graphical outputs that can be displayed on the application with:
+
+-   **a spatial correlation button:** if selected, the spatial correlation between the targets are calculated and displayed.
+
+-   **a sliding bar**: this bar allow to select the target number whose spatial distribution will be plotted.
+
+### 4.4.2. Outputs
+
+Depending on the user's selection, several outputs are displayed on the output panel of the application:
+
+-   The spatial distribution legend: as described in section 3.5., the maps integrate both relative abundance and uncertainty between bootstrap rounds. The corresponding legend is always displayed on the top of the output panel.
+
+-   The spatial correlation: if selected, the spatial correlation between the targets is displayed next to the legend, on the top of the output panels. Because only one map can be displayed at the time, this plot allows to better understand the interactions between the targets.
+
+-   The spatial distribution map: the map corresponding to the relative abundance of the selected gene cluster target is displayed on the bottom of the output panel. This plot is dynamically displayed depending on the user's selection.
+
+For additional information, please read the detailed description of the calculation and framework in section 3.

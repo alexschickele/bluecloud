@@ -10,11 +10,10 @@
 #' 
 #' @return a .pdf in /graphic with the Y and Y_hat per station and variable importance
 
-model_eval <- function(bluecloud.wd = bluecloud.wd,
+model_eval <- function(bluecloud.wd = "/home/jovyan/bluecloud",
                        by_target = FALSE,
                        var_importance = FALSE){
   
-  source(paste0(bluecloud.wd,"/code/00a_config.R"))
   # --- Loading data
   setwd(paste0(bluecloud.wd,"/data/"))
   m <- py_load_object("m", pickle = "pickle")

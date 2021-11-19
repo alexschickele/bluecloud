@@ -3,12 +3,11 @@
 # Extract the necessary data for the model according to the pre-defined filters
 # i.e. number of genes and station per clusters
 
-query_data <- function(bluecloud.wd = bluecloud.wd,
+query_data <- function(bluecloud.wd = "/home/jovyan/bluecloud",
                        KEGG_p = "00190",
                        CLUSTER_SELEC = list(MIN_STATIONS = 50, MIN_GENES = 5, MAX_GENES = 25),
                        ENV_METRIC = c("mean","sd","med","mad","dist","bathy")){
   
-  source(paste0(bluecloud.wd,"/code/00a_config.R"))
   # --- For local database
   # db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/",FILTER,"_DB.sqlite"))
   
@@ -73,7 +72,7 @@ query_data <- function(bluecloud.wd = bluecloud.wd,
     write_feather(Y, path = paste0(bluecloud.wd,"/data/Y.feather"))
     
     # --- 6. Close connection
-    dbRemoveTable(db, "query")
+    
     print(paste("Number of stations :", nrow(X)))
     print(paste("Number of environmental features :", ncol(X)))
     print(paste("Number of gene cluster targets :", ncol(Y)))
@@ -82,5 +81,6 @@ query_data <- function(bluecloud.wd = bluecloud.wd,
   } else {message("STOP: the query has no result. Try to increase the gene range or minimum number of stations")} # if continue
   
   # --- Close connection
+  dbRemoveTable(db, "query")
   dbDisconnect(db)
 } # end function
