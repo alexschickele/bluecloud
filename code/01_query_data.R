@@ -3,7 +3,7 @@
 # Extract the necessary data for the model according to the pre-defined filters
 # i.e. number of genes and station per clusters
 
-query_data <- function(bluecloud.wd = "/home/jovyan/bluecloud",
+query_data <- function(bluecloud.wd = bluecloud_dir,
                        KEGG_p = "00190",
                        CLUSTER_SELEC = list(MIN_STATIONS = 50, MIN_GENES = 5, MAX_GENES = 25),
                        ENV_METRIC = c("mean","sd","med","mad","dist","bathy")){
@@ -24,15 +24,17 @@ query_data <- function(bluecloud.wd = "/home/jovyan/bluecloud",
   # --- 1. Filter "data" by "cluster_sort"
   # the "!!" are necessary for some unknown reasons
   # the KEGG_p query needs to be updated in order to avoid the copy = TRUE
-  query <- dbGetQuery(db, paste0("SELECT * FROM public.kegg_sort WHERE kegg_pathway LIKE '%", KEGG_p,"%'")) %>% 
+  query <- tbl(db, "kegg_sort") %>% 
+    filter(str_detect(kegg_pathway, KEGG_p)) %>% 
     dplyr::group_by(CC) %>% 
-    dplyr::summarise(kegg_p = KEGG_p, n_kegg = max(str_count(kegg_pathway, "ko"))) %>% 
-    filter(n_kegg == 1) %>% 
+    dplyr::summarise(kegg_p = KEGG_p, max_kegg = max(n_kegg, na.rm = TRUE)) %>% 
+    filter(max_kegg == 1) %>% 
     inner_join(tbl(db, "cluster_sort"), copy = TRUE) %>% 
     filter(n_station >= !!CLUSTER_SELEC$MIN_STATIONS & n_genes >= !!CLUSTER_SELEC$MIN_GENES & n_genes <= !!CLUSTER_SELEC$MAX_GENES)
-  copy_to(db, query, temporary = FALSE)
   
-  if(nrow(query)!=0){
+  check_query <- query %>% collect()
+
+  if(nrow(check_query)!=0){
     target <- tbl(db, "query") %>% 
       select(CC) %>% 
       inner_join(tbl(db, "data")) %>% 

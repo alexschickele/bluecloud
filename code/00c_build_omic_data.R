@@ -103,7 +103,9 @@ dbSendQuery(db, 'CREATE INDEX by_cluster_sort ON public.cluster_sort ("CC")')
 # --- 7. Add correspondence Cluster - KEGG_Pathway
 kegg_sort <- tbl(db, "clusters") %>% 
   select("Genes", "CC", "KEGG_Pathway") %>% 
-  rename(kegg_pathway = KEGG_Pathway) #Otherwise I cannot do the query() in the next script !! ... on BlueCLoud postgresql
+  rename(kegg_pathway = KEGG_Pathway) %>% #Otherwise I cannot do the query() in the next script !! ... on BlueCLoud postgresql
+  collect() %>% 
+  mutate(n_kegg = str_count(kegg_pathway, "ko")) #Calculated out of SQL here to have read-only query later
 copy_to(db, kegg_sort, temporary = FALSE, na.rm = FALSE)
 
 # --- 8. Pre-calculate feature table from nearest non-NA values

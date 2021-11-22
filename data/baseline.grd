@@ -1,0 +1,25 @@
+[general]
+creator=R package 'raster'
+created=2021-07-08 14:47:01
+[georeference]
+nrows=180
+ncols=360
+xmin=-180
+ymin=-90
+xmax=180
+ymax=90
+projection=+proj=longlat +datum=WGS84
+[data]
+datatype=FLT4S
+byteorder=little
+nbands=8
+bandorder=BIL
+minvalue=-8:0:61.7658926645915:147.667921702067:0.024257875358065:5:0.348609298467636:-1.8565900127093
+maxvalue=93.8706353505452:34.2503970464071:125.978886922201:460.970016479492:2.45268976688385:40.2516498565674:89.8992449442546:30.0187911987305
+nodatavalue=-3.4e+38
+[legend]
+legendtype=
+values=
+color=
+[description]
+layername=AOU:nitrate:o2sat:oxygen:phosphate:salinity:silicate:temperature

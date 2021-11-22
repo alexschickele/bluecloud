@@ -107,12 +107,12 @@ The latter contains the list of packages, functions and general parameters neces
 
 Here is an example for a Jupyter Hub instance on BlueCloud, where the pipeline has been copied to `/home/jovyan/bluecloud` :
 
--   First modify 00a_config.R according to:
+-   First define the working directories according to:
 
 ```{r}
 # --- Input / Output directories
-bluecloud.wd <- bluecloud_dir <- "/home/jovyan/bluecloud"
-data.wd <- data_dir <- "/home/jovyan/dataspace/PlanktonGenomic_datasets/"
+bluecloud_dir <- "/home/jovyan/bluecloud"
+data_dir <- "/home/jovyan/dataspace/PlanktonGenomic_datasets/"
 ```
 
 -   Once the path are properly indicated in the config file, we can run the following command:

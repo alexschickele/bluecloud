@@ -14,7 +14,7 @@
 #' @return a .pdf in /graphics containing the loss per boosting round for each
 #' cross validation fold and hyperparameter set
 
-model_run <- function(bluecloud.wd = "/home/jovyan/bluecloud",
+model_run <- function(bluecloud.wd = bluecloud_dir,
                       HYPERPARAMETERS = data.frame(LEARNING_RATE = c(1e-2, 1e-2, 1e-2, 1e-2),
                                                    N_Q = c(5, 10, 20, 50),
                                                    MEAN_LEAF = c(30, 40, 50, 60)),

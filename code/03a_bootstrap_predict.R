@@ -17,8 +17,8 @@
 #' - do more pretty graphics
 #' - think about a synthetic way to present the graphics
 
-model_proj <- function(bluecloud.wd = "/home/jovyan/bluecloud",
-                       data.wd = "/home/jovyan/dataspace/PlanktonGenomic_datasets/",
+model_proj <- function(bluecloud.wd = bluecloud_dir,
+                       data.wd = data_dir,
                        ENV_METRIC = c("mean","sd","med","mad","dist","bathy")){
   
   HYPERPARAMETERS <- read_feather(paste0(bluecloud.wd,"/data/HYPERPARAMETERS.feather"))
@@ -127,7 +127,6 @@ cor_proj <- function(y_hat_m){
   
   axis(side = 1, at = seq(0,ncol(y_hat_m),1), labels = seq(0,ncol(y_hat_m),1))
   axis(side = 2, at = seq(0,ncol(y_hat_m),1), labels = seq(0,ncol(y_hat_m),1))
-  grid(ncol(y_hat_m), lwd = 2, col = "white", lty = "solid")
 }
 
 # --- Plot the maps ---

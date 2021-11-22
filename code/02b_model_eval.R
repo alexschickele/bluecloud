@@ -10,7 +10,7 @@
 #' 
 #' @return a .pdf in /graphic with the Y and Y_hat per station and variable importance
 
-model_eval <- function(bluecloud.wd = "/home/jovyan/bluecloud",
+model_eval <- function(bluecloud.wd = bluecloud_dir,
                        by_target = FALSE,
                        var_importance = FALSE){
   
@@ -25,8 +25,7 @@ model_eval <- function(bluecloud.wd = "/home/jovyan/bluecloud",
   r2_tar <- mse_tar <- matrix(NA, ncol = ncol(Y0), nrow = N_FOLD)
   
   pal <- brewer.pal(ncol(Y0), "Spectral")
-  par(bg="black", col="white", col.axis = "white", col.lab="white",col.main="white",
-      mfrow =c(ceiling(N_FOLD^0.5),ceiling(N_FOLD^0.5)), mar = c(2,5,2,1))
+  par(bg="black", col="white", col.axis = "white", col.lab="white",col.main="white", mar = c(2,5,2,1))
   
   # --- Evaluating model and plotting relative abundance
   for(cv in 1:N_FOLD){
@@ -80,6 +79,7 @@ model_eval <- function(bluecloud.wd = "/home/jovyan/bluecloud",
     
     for(cv in 1:N_FOLD){
       m0 <- m[[cv]][[1]]
+      Dloss <- m[[cv]][[2]]-m[[cv]][[2]][1]
       n_tree <- length(m0$trees)
       
       for(t in 1:n_tree){
@@ -89,7 +89,8 @@ model_eval <- function(bluecloud.wd = "/home/jovyan/bluecloud",
           var_nb <- m0$trees[[t]]$g$nodes$`_nodes`[[n]]$variable+1 #py index start at 0, R at 1
           
           if(!is.null(var_nb)){
-            var_count[cv,var_nb] <- var_count[cv,var_nb]+1
+            dloss <- m0$trees[[t]]$g$nodes$`_nodes`[[n]]$loss*-1*Dloss[n_tree]
+            var_count[cv,var_nb] <- var_count[cv,var_nb]+dloss
           }
         } # node loop
       } # tree loop
@@ -99,14 +100,15 @@ model_eval <- function(bluecloud.wd = "/home/jovyan/bluecloud",
     
     # --- Plotting variable importance
     pal <- rep(brewer.pal(ncol(X0), "Spectral"), each = N_FOLD)
-    
+    par(mar = c(8, 4, 2, 2))
     plot(x=rep(seq(1,ncol(X0)), each = N_FOLD), y=var_imp, col = pal,
-         pch=18, cex=2, ylim=c(0,100),
-         ylab="variable importance (%)", xlab="variable")
-    abline(h=(seq(0,100,20)), lty="dotted", col="white")
-    legend(x=ncol(X0)-0.2*ncol(X0), 100, legend = colnames(X0),
-           fill = brewer.pal(ncol(X0), "Spectral"),
-           title = "variables :", border="white", box.col = "white")
+         pch=18, cex=2, ylim=c(0,100), axes = FALSE,
+         ylab="variable importance (%)", xlab = "")
+    abline(h=(seq(0,100,10)), lty="dotted", col="white")
+    axis(side = 2, at = seq(0,100,10), labels = seq(0,100,10))
+    axis(side = 1, at = 1:ncol(X0), labels = colnames(X0), las = 2, 
+         cex.axis = if(ncol(X0) > 20) {0.7} else {1})
+
   }
 
   
