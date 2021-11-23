@@ -9,7 +9,7 @@
 *.gri
 *.nc
 *.Rproj.user
-*/data*
+data/*
 *.Rproj.user
 *.p
 .Rproj.user
