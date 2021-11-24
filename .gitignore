@@ -10,6 +10,8 @@
 *.nc
 *.Rproj.user
 data/*
+omic_data/*
 *.Rproj.user
 *.p
+*.ipynb
 .Rproj.user

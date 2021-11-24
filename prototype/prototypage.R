@@ -1,3 +1,50 @@
+# try to connect to  bluecloud db
+
+library(DBI)
+library(RPostgres)
+library(tidyverse)
+
+db <- RPostgreSQL::dbConnect(
+  drv=RPostgreSQL::PostgreSQL(),
+  host="postgresql-srv.d4science.org",
+  dbname="bluecloud_demo2",
+  user="bluecloud_demo2_u",
+  password="6a26c54a05ec5dede958a370ca744a",
+  port=5432
+)
+
+dbListTables(db)
+test <- tbl(db, "mtcars") %>% 
+  collect()
+copy_to(db, test, temporary = FALSE)
+dbListTables(db)
+dbRemoveTable(db, "test")
+
+query <- dbGetQuery(db, paste0("SELECT * FROM public.kegg_sort WHERE kegg_pathway LIKE '%", KEGG_p,"%'")) %>% 
+  group_by(CC) %>% 
+  summarise(kegg_p = KEGG_p, n_kegg = str_count(kegg_pathway, "ko")) %>% 
+  filter(n_kegg == 1) %>% 
+  inner_join(tbl(db, "cluster_sort"), copy = TRUE) %>% 
+  filter(n_station >= !!CLUSTER_SELEC$MIN_STATIONS & n_genes >= !!CLUSTER_SELEC$MIN_GENES & n_genes <= !!CLUSTER_SELEC$MAX_GENES)
+copy_to(db, query, temporary = TRUE)
+
+query <- dbGetQuery(db, "SELECT * FROM public.kegg_sort WHERE kegg_pathway LIKE '%00190%'")
+dbGetQuery(db, paste0("SELECT * FROM public.kegg_sort WHERE kegg_pathway LIKE '%", KEGG_p,"%'"))
+
+# --- Config function prototype
+
+config <- function(A = "ciao"){
+  ls()
+  rm(list = setdiff(ls(), lsf.str()))
+  A <- "hello"
+  B <- "bye"
+  return(list(A,B))
+}
+
+config(A = "tutu")
+toto = "nul"
+
+
 # --- Open carbon ncdf file
 nc <- nc_open(paste0(data.wd, "/data/environmental_data/dataset-carbon-rep-monthly_1634022472331.nc"))
 VAR <- names(nc$var)
