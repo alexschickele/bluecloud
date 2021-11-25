@@ -14,4 +14,5 @@ omic_data/*
 *.Rproj.user
 *.p
 *.ipynb
+*.zip
 .Rproj.user

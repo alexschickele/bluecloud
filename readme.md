@@ -24,7 +24,7 @@ This notebook is divided in two services, designed for expert and non-expert use
 
 ## 2.1. Cloning the files
 
-The files for this service available in a zip.file at:
+The files for this service available in a zip.file at: <https://data.d4science.net/WLah>
 
 To run the service within the BlueCloud infrastructure, you need to be registered at: <https://blue-cloud.d4science.org/group/planktongenomics>
 
