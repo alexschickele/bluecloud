@@ -17,61 +17,65 @@ model_eval <- function(bluecloud.wd = bluecloud_dir,
   # --- Loading data
   setwd(paste0(bluecloud.wd,"/data/"))
   m <- py_load_object("m", pickle = "pickle")
+  HYPERPARAMETERS <- read_feather(paste0(bluecloud.wd,"/data/HYPERPARAMETERS.feather"))
+  ID <- read_feather(paste0(bluecloud.wd,"/data/Station_FOLD.feather"))
   Y0 <- as.data.frame(read_feather(paste0(bluecloud.wd,"/data/Y.feather")))
   X0 <- as.data.frame(read_feather(paste0(bluecloud.wd,"/data/X.feather")))
   
   # --- Initializing outputs
-  r2 <- mse <- NULL
-  r2_tar <- mse_tar <- matrix(NA, ncol = ncol(Y0), nrow = N_FOLD)
+  y_hat <- r2_tar <- rmse_tar <- NULL
   
-  pal <- brewer.pal(ncol(Y0), "Spectral")
-  par(bg="black", col="white", col.axis = "white", col.lab="white",col.main="white", mar = c(2,5,2,1))
-  
-  # --- Evaluating model and plotting relative abundance
+  # --- Predicting on the validation data
   for(cv in 1:N_FOLD){
     # --- Loading test data and models
     X_val <- as.data.frame(read_feather(paste0(bluecloud.wd,"/data/", cv, "_X_val.feather")))
-    Y_val <- as.data.frame(read_feather(paste0(bluecloud.wd,"/data/", cv, "_Y_val.feather")))
     m0 <- m[[cv]][[1]]
     
-    # --- Do predictions on test set
-    y_hat <- mbtr_predict(m0, X_val)
-    
-    # --- Evaluate model fit
-    r2 <- c(r2,calc_rsquared(as.matrix(Y_val), y_hat))
-    se <- (Y_val-y_hat)^2
-    mse <- c(mse, mean(as.matrix(se), na.rm=TRUE))
-    
-    # --- Evaluate individual target fit
-    for(t in 1:ncol(Y0)){
-      r2_tar[cv,t] <- calc_rsquared(as.matrix(Y_val)[,t], y_hat[,t])
-      mse_tar[cv,t] <- mean(as.matrix(Y_val[,t]-y_hat[,t])^2, na.rm = TRUE)
-    }
-  
-    # --- Plot prediction against test set
-    plot(Y_val[,1], type='l', ylim = c(0,1), ylab = "relative abundance", xlab = "obs", col="black",
-         main = paste("fold n°", cv))
-    for(i in 1:ncol(Y_val)){
-      lines(y_hat[,i], col=pal[i], lwd=1)
-      lines(Y_val[,i], lty="dotted", col=pal[i], lwd=2)
-    } # i target
-    legend(x=nrow(y_hat)-0.2*nrow(y_hat), 1, legend = seq(1:ncol(y_hat)),
-           fill = brewer.pal(ncol(y_hat), "Spectral"),
-           title = "tar. nb. :", border="white", box.col = "white")
+    # --- Do predictions
+    y_hat <- rbind(y_hat, mbtr_predict(model = m0, X_pred = X_val, n_boosts = HYPERPARAMETERS$n_boost))
   } # k-fold cv  loop
   
-  # --- Print model fit ---
-  print(paste("--- model multidimensional R-squarred is :", round(mean(r2),2), "+/-", round(sd(r2),2), "---"))
-  print(paste("--- model multidimensional MSE is :", round(mean(mse),2), "+/-", round(sd(mse),2), "---"))
-  print(paste("--- model multidimensional RMSE is :", round(mean(sqrt(mse)),2), "+/-", round(sd(sqrt(mse)),2), "---"))
+  # --- Put y_hat_all back with the pre-fold station order
+  # We performed a random sorting to create the folds, we therefore need to match Y again before evaluation
+  y_hat <- y_hat[order(ID$Station),]
   
-  # --- Print individual target fit
-  if(by_target == TRUE){
-    cat(paste("--- R2 for target", 1:ncol(Y0),":", round(apply(r2_tar, 2, mean),2),"+/-", round(apply(r2_tar, 2, sd),2), "--- \n"))
-    cat(paste("--- RMSE for target", 1:ncol(Y0),":", round(apply(sqrt(mse_tar), 2, mean),2),"+/-", round(apply(sqrt(mse_tar), 2, sd),2), "--- \n"))
+  # --- Global model evaluation
+  r2 <- calc_rsquared(as.matrix(Y0), y_hat)
+  rmse <- sqrt(mean(as.matrix((Y0-y_hat)^2), na.rm=TRUE))
+  
+  print(paste("--- model multidimensional R-squarred is :", round(r2, 2), "---"))
+  print(paste("--- model multidimensional RMSE is :", round(rmse, 2), "---"))
+  
+  # --- Target by target evaluation
+  if(by_target==TRUE){
+    for(t in 1:ncol(Y0)){
+      r2_tar <- c(r2_tar, calc_rsquared(as.matrix(Y0[,t]), as.matrix(y_hat[,t])))
+      rmse_tar <- c(rmse_tar, sqrt(mean(as.matrix((Y0[,t]-y_hat[,t])^2), na.rm=TRUE)))
+    }
+    print("--- R2 by target :")
+    print(round(r2_tar,2))
+    print("--- RMSE by target :")
+    print(round(rmse_tar,2))
+  }
+  
+  # --- Plot predictions vs truth
+  par(mar = c(4,4,5,0), mfrow = c(2,1))
+  for(t in 1:ncol(Y0)){
+    plot(y = Y0[,t], x = as.numeric(sort(ID$Station)), 
+         type = 'p', xlim = c(0,153), ylab = "Abundance", xlab = "Station number", 
+         main = paste("Target n°", t, "(", names(Y0[t]), ")"), cex.main = 1,
+         pch = 16, axes = FALSE)
+    segments(y0 = Y0[,t], x0 = as.numeric(sort(ID$Station)),
+             y1 = y_hat[,t], x1 = as.numeric(sort(ID$Station)),
+             col = "black")
+    points(y = y_hat[,t], x = as.numeric(sort(ID$Station)), pch = 16, col = "gray50")
+    axis(side = 1, at = seq(1:153), cex.axis = 0.5, las = 2)
+    axis(side = 2)
+    axis(side = 3, at = c(15, 48, 78, 115, 148), labels = c("Med.", "S. Ind.", "S. Alt.", "Pac.", "N. Alt"), tick = FALSE)
+    abline(v = c(30.5, 66.5, 89.5, 140.5), lty = "dotted")
+    box()
   }
 
-  
   # --- Calculating variable importance
   if(var_importance == TRUE){
     var_count <- matrix(0, ncol = ncol(X0), nrow=N_FOLD)
@@ -79,7 +83,6 @@ model_eval <- function(bluecloud.wd = bluecloud_dir,
     
     for(cv in 1:N_FOLD){
       m0 <- m[[cv]][[1]]
-      Dloss <- m[[cv]][[2]]-m[[cv]][[2]][1]
       n_tree <- length(m0$trees)
       
       for(t in 1:n_tree){
@@ -89,34 +92,28 @@ model_eval <- function(bluecloud.wd = bluecloud_dir,
           var_nb <- m0$trees[[t]]$g$nodes$`_nodes`[[n]]$variable+1 #py index start at 0, R at 1
           
           if(!is.null(var_nb)){
-            dloss <- m0$trees[[t]]$g$nodes$`_nodes`[[n]]$loss*-1*Dloss[n_tree]
+            dloss <- m0$trees[[t]]$g$nodes$`_nodes`[[n]]$loss*(-1)
             var_count[cv,var_nb] <- var_count[cv,var_nb]+dloss
           }
         } # node loop
       } # tree loop
     } # fold loop
     
-    var_imp <- t(apply(var_count, 1, function(x) (x*100)/sum(x, na.rm = TRUE)))
+    var_imp <- t(apply(var_count, 1, function(x) (x*100)/sum(x, na.rm = TRUE))) %>% 
+      apply(2, mean)
     
     # --- Plotting variable importance
-    pal <- rep(brewer.pal(ncol(X0), "Spectral"), each = N_FOLD)
-    par(mar = c(8, 4, 2, 2))
-    plot(x=rep(seq(1,ncol(X0)), each = N_FOLD), y=var_imp, col = pal,
-         pch=18, cex=2, ylim=c(0,100), axes = FALSE,
+    par(mar = c(6, 4, 1, 1))
+    plot(x=seq(1,ncol(X0)), y=var_imp, type = 'h',
+         lwd=10, lend = 2, ylim=c(0,100), axes = FALSE,
          ylab="variable importance (%)", xlab = "")
-    abline(h=(seq(0,100,10)), lty="dotted", col="white")
+    abline(h=(seq(0,100,10)), lty="dotted", col="black")
     axis(side = 2, at = seq(0,100,10), labels = seq(0,100,10))
     axis(side = 1, at = 1:ncol(X0), labels = colnames(X0), las = 2, 
          cex.axis = if(ncol(X0) > 20) {0.7} else {1})
+    box()
 
-  }
+  } # var imp
 
-  
-  # --- Clean up temporary files
-  # data_file <- list.files(paste0(bluecloud.wd,"/data/"))
-  # for(cv in 1:9){
-  #   rem_file <- data_file[grep(paste0(cv,"_"), data_file)]
-  #   file.remove(rem_file)
-  # }
 
 } # end function

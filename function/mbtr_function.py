@@ -58,7 +58,7 @@ min_leaf: int=20, lambda_weights: float=0.0001, lambda_leaves: float=0.0001):
           
   return m
 
-def mbtr_predict(model, X_pred):
+def mbtr_predict(model, X_pred, n_boosts):
 
   """
   Predict the y_hat target dataframe according to a x_pred feature matrix and
@@ -78,7 +78,7 @@ def mbtr_predict(model, X_pred):
   from mbtr.utils import set_figure
   
   X_pred = X_pred.to_numpy()
-  y_hat = model.predict(X_pred)
+  y_hat = model.predict(x = X_pred, n = n_boosts)
   
   return y_hat
   

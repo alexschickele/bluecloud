@@ -35,7 +35,7 @@ DEPTH <- c("SUR") # selected depth for genomic data
 FILTER <- c("GGMM") # selected size filter for genomic data
 
 # --- Model specific parameters
-NBOOST <- 30 # maximum number of boosting rounds
+NBOOST <- 3000 # maximum number of boosting rounds
 N_FOLD <- 5 # number of k-fold cross validation runs
 MAX_CLUSTER <- 8 # maximum number of clusters for parallel computing
 

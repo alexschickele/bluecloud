@@ -70,7 +70,7 @@ model_proj <- function(bluecloud.wd = bluecloud_dir,
   # --- Predicting values
   cat(paste("---", Sys.time(), "// Projecting maps // This may take some time --- \n"))
   y_hat <- mclapply(m,
-                function(a_boot) mbtr_predict(a_boot, X),
+                function(a_boot) mbtr_predict(model = a_boot, X_pred = X, n_boosts = HYPERPARAMETERS$n_boost),
                 mc.cores = min(c(MAX_CLUSTER, NBOOTSTRAP))) %>% 
     abind(along = 3)
   cat(paste("---", Sys.time(), "// Done --- \n"))

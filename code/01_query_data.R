@@ -5,8 +5,9 @@
 
 query_data <- function(bluecloud.wd = bluecloud_dir,
                        KEGG_p = "00190",
-                       CLUSTER_SELEC = list(MIN_STATIONS = 50, MIN_GENES = 5, MAX_GENES = 25),
-                       ENV_METRIC = c("mean","sd","med","mad","dist","bathy")){
+                       CLUSTER_SELEC = list(MIN_STATIONS = 80, MIN_GENES = 5, MAX_GENES = 25),
+                       ENV_METRIC = c("mean","sd","dist","bathy"),
+                       relative = TRUE){
   
   # --- For local database
   # db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/",FILTER,"_DB.sqlite"))
@@ -27,7 +28,7 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
   query <- tbl(db, "kegg_sort") %>% 
     filter(str_detect(kegg_pathway, KEGG_p)) %>% 
     dplyr::group_by(CC) %>% 
-    dplyr::summarise(kegg_p = KEGG_p, max_kegg = max(n_kegg, na.rm = TRUE)) %>% 
+    dplyr::summarise(max_kegg = max(n_kegg, na.rm = TRUE)) %>% 
     filter(max_kegg == 1) %>% 
     inner_join(tbl(db, "cluster_sort"), copy = TRUE) %>% 
     filter(n_station >= !!CLUSTER_SELEC$MIN_STATIONS & n_genes >= !!CLUSTER_SELEC$MIN_GENES & n_genes <= !!CLUSTER_SELEC$MAX_GENES)
@@ -35,7 +36,7 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
   check_query <- query %>% collect()
 
   if(nrow(check_query)!=0){
-    target <- tbl(db, "query") %>% 
+    target <- query %>% 
       select(CC) %>% 
       inner_join(tbl(db, "data")) %>% 
       select(c("Genes", "CC", "readCount", "Station", "Longitude", "Latitude", "Description"))
@@ -60,21 +61,33 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
     X <- target %>% 
       select(Station) %>% 
       inner_join(tbl(db, "X0")) %>% 
-      select(-Station) %>% 
-      select(contains(ENV_METRIC)) %>% 
+      select(contains(c(ENV_METRIC))) %>% 
       collect()
   
     write_feather(X, path = paste0(bluecloud.wd,"/data/X.feather"))
     
     # --- 5. Building the final target table "Y"
     Y <- target %>% 
-      select(contains("CC")) %>% 
-      collect()
+      select(contains(c("Station","CC"))) %>%
+      collect() %>% 
+      arrange(Station) %>% 
+      select(-Station)
     Y <- Y/max(Y, na.rm = TRUE)
+    if(relative == TRUE){
+      Y <- apply(as.matrix(Y), 1, function(x){if(sum(x)>0){x = x/sum(x, na.rm = TRUE)} else {x = x}}) %>%
+        aperm(c(2,1)) %>%
+        as.data.frame()
+    }
     write_feather(Y, path = paste0(bluecloud.wd,"/data/Y.feather"))
     
-    # --- 6. Close connection
+    # --- 6. Extract the vector of station names
+    ID <- target %>% 
+      select(Station) %>% 
+      collect()
+    ID <- sort(ID$Station)
+    write_feather(data.frame(Station = ID), path = paste0(bluecloud.wd,"/data/Station_ID.feather"))
     
+    # --- 7. Close connection
     print(paste("Number of stations :", nrow(X)))
     print(paste("Number of environmental features :", ncol(X)))
     print(paste("Number of gene cluster targets :", ncol(Y)))
@@ -83,6 +96,5 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
   } else {message("STOP: the query has no result. Try to increase the gene range or minimum number of stations")} # if continue
   
   # --- Close connection
-  dbRemoveTable(db, "query")
   dbDisconnect(db)
 } # end function
