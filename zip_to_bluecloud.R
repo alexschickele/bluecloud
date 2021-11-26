@@ -4,6 +4,8 @@ rmd2jupyter("~/workspace/bluecloud/Service_1.Rmd")
 
 zip(zipfile = "~/workspace/bluecloud/bluecloud_wp3_d2_s1.zip",
     files = c("Service_1.ipynb",
+              "./data/X.feather",
+              "./data/Y.feather",
               "./function",
               "./code/00a_config.R",
               "./code/01_query_data.R",

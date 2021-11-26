@@ -1,3 +1,7 @@
+---
+output: word_document
+---
+
 # Demonstrator 2 - Notebook 2:
 
 # Projecting plankton functional gene clusters
@@ -24,13 +28,18 @@ This notebook is divided in two services, designed for expert and non-expert use
 
 ## 2.1. Cloning the files
 
-The files for this service available in a zip.file at: <https://data.d4science.net/WLah>
+The files for this service available in a zip.file at: <https://data.d4science.net/K6Ui>
 
 To run the service within the BlueCloud infrastructure, you need to be registered at: <https://blue-cloud.d4science.org/group/planktongenomics>
 
--   Open a Jupyter Hub R environment, large 32Gb RAM / 8 cores.
+-   Open a Jupyter Hub **R environment, large 32Gb RAM / 8 cores**.
 
--   Copy and unzip the `bluecloud_wp3_d2_s1.zip` in the root. The pathway should be `/home/jovyan`
+-   Copy and unzip the `bluecloud_wp3_d2_s1.zip` in the root. The pathway should be `/home/jovyan`. To unzip the file in the root, open a terminal and execute the following code:
+
+```{bash}
+cd
+unzip bluecloud_wp3_d2_s1
+```
 
 ## 2.2. Libraries installation
 
@@ -42,10 +51,10 @@ In order to run this notebook, several R packages and Python libraries are neces
 R -e "install.packages(c('raster','virtualspecies','abind','feather','reticulate','RColorBrewer','parallel','mvrsquared','tidyverse','RSQLite','RPostgreSQL','Shiny','Shinybusy'), repos='https://cran.r-project.org/', dependencies=TRUE)"
 ```
 
--   The Python library are not available on public repositories. Therefore, open a command prompt and execute the following code. Please note that the path need to correspond to the function/MBTR folder, the example corresponds to a Jupyter Hub instance on BlueCloud:
+-   The Python libraries are not available on public repositories. Therefore, open a command prompt and execute the following code. Please note that the path needs to correspond to the function/MBTR folder, the example corresponds to a Jupyter Hub instance on BlueCloud:
 
 ```{bash}
-cd /workspace/VREFolders/PlanktonGenomics/Notebook_2/function/MBTR
+cd /home/jovyan/function/MBTR
 pip install .
 ```
 

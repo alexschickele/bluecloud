@@ -95,7 +95,7 @@ Here is an example for a Jupyter Hub instance on BlueCloud, where the pipeline h
 
 ```{r}
 # --- Input / Output directories
-bluecloud_dir <- "/home/jovyan/bluecloud_wp3_d2_s1"
+bluecloud_dir <- "/home/jovyan/"
 data_dir <- "/home/jovyan/dataspace/PlanktonGenomic_datasets/"
 ```
 
@@ -268,7 +268,7 @@ The spatial projections are calculated by the `model_proj()` function:
 
 proj <- model_proj(bluecloud.wd = bluecloud_dir,
                    data.wd = data_dir,
-                   ENV_METRIC = c("mean","sd","med","mad","dist","bathy"))
+                   ENV_METRIC = c("mean","sd","dist","bathy"))
 ```
 
 Before describing the inputs and outputs of `model_proj()`, we need to understand how the underlying `colmat()` function works. In order to plot both average projection and uncertainty on the same plot, we required saturation-dependent color palettes, that are defined by:
