@@ -19,7 +19,7 @@
 
 model_proj <- function(bluecloud.wd = bluecloud_dir,
                        data.wd = data_dir,
-                       ENV_METRIC = c("mean","sd","med","mad","dist","bathy")){
+                       ENV_METRIC = c("mean","sd","dist","bathy")){
   
   HYPERPARAMETERS <- read_feather(paste0(bluecloud.wd,"/data/HYPERPARAMETERS.feather"))
   
@@ -82,11 +82,13 @@ model_proj <- function(bluecloud.wd = bluecloud_dir,
   y_hat_m <- apply(y_hat, c(1,2), mean)
   y_hat_sd <- apply(y_hat, c(1,2), sd)
   
-  cutx <- seq(0,0.5,0.05)
-  cuty <- seq(0,1,0.1)
+  cutx <- seq(0,0.5,0.005)
+  cuty <- seq(0,1,0.01)
   
   # --- Rasterizing bivariate projections
-  col_matrix <- colmat(pal = brewer.pal(10, "RdYlBu"), saturation = 0,
+  custom_pal <- c("#700700", "#D23A4E", "#FBA35C", "#ECEF94", "#7FCBA4", "#60BBA7", "#47A0B2",
+                  "#3485BB", "#496AAE", "#5E4FA2", "#520061")
+  col_matrix <- colmat(pal = colorRampPalette(custom_pal)(100), saturation = 0,
                        xlab = "Standard deviation", ylab = "Relative Abundance")
   
   for(i in 1:ncol(y_hat_m)){
@@ -102,6 +104,7 @@ model_proj <- function(bluecloud.wd = bluecloud_dir,
       col[[i]] <- tmp[[2]]
     }
   } # i target loop
+  proj[is.na(proj)] <- 1 # negative value (NA, model artefact) to zero (cell 1 in col_matrix)
   proj <- synchroniseNA(stack(features[[1]], proj))[[-1]]
   names(proj) <- paste(1:ncol(y_hat_m))
   
@@ -113,8 +116,8 @@ model_proj <- function(bluecloud.wd = bluecloud_dir,
 legend_proj <- function(col_matrix, cutx, cuty){
   par(mar=c(5,5,1,5))
   colmat_plot(col_matrix, xlab = "Standard deviation", ylab = "Relative Abundance")
-  axis(side = 1, at = seq(0,1,0.1), labels = cutx)
-  axis(side = 2, at = seq(0,1,0.1), labels = cuty)
+  axis(side = 1, at = seq(0,1,0.1), labels = seq(0,0.5,0.05))
+  axis(side = 2, at = seq(0,1,0.1), labels = seq(0,1,0.1))
 }
 
 # --- Plot the correlation ---

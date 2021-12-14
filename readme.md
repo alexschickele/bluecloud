@@ -4,7 +4,7 @@ output: word_document
 
 # Demonstrator 2 - Notebook 2:
 
-# Projecting plankton functional gene clusters
+# Mapping the geographical distribution of plankton functional gene clusters using habitat prediction modes
 
 ------------------------------------------------------------------------
 

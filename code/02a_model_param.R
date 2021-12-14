@@ -12,7 +12,6 @@
 #' @return a .mbtr object containing the trained model per hyperparameter and
 #' cross validation fold
 
-
 model_run <- function(bluecloud.wd = bluecloud_dir,
                       HYPERPARAMETERS = data.frame(LEARNING_RATE = c(1e-2, 1e-2, 1e-2, 1e-2),
                                                    N_Q = c(10, 10, 10, 10),
@@ -63,7 +62,7 @@ model_run <- function(bluecloud.wd = bluecloud_dir,
                 lambda_leaves=0,
                 n_q= as.integer(HYPERPARAMETERS$N_Q[hp]),
                 val_path = paste0(bluecloud.wd,"/data/", cv),
-                early_stopping_rounds = as.integer(min(50,(1/HYPERPARAMETERS$LEARNING_RATE[hp]))),
+                early_stopping_rounds = as.integer(max(50,(1/HYPERPARAMETERS$LEARNING_RATE[hp]))),
                 SIMPLIFY = FALSE,
                 USE.NAMES = FALSE,
                 mc.cores = min(c(MAX_CLUSTER, N_FOLD*nrow(HYPERPARAMETERS))))

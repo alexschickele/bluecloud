@@ -2,10 +2,14 @@
 title: "Service_1"
 author: "aschickele"
 date: "25/11/2021"
-output: pdf_document
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  word_document: default
 ---
 
-# Demonstrator 2 - Notebook 2: Projecting plankton functional gene clusters
+# Demonstrator 2 - Notebook 2: Mapping the geographical distribution of plankton functional gene clusters using habitat prediction models
 
 **Authors:** A. Schickele, P. Debeljack, L. Guidi, S. Ayata, J.O. Irisson
 
@@ -193,8 +197,8 @@ The model training and hyperparameters selection is called using the `model_run(
 run <- model_run(bluecloud.wd = bluecloud_dir,
                  HYPERPARAMETERS = data.frame(LEARNING_RATE = c(5e-3, 5e-3, 5e-3, 5e-3),
                                               N_Q = c(10, 10, 10, 10),
-                                              MEAN_LEAF = c(30, 40, 50, 60),
-                 verbose = TRUE))
+                                              MEAN_LEAF = c(30, 40, 50, 60)),
+                 verbose = TRUE)
 ```
 
 ### **3.3.2. Inputs**

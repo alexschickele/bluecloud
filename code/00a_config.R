@@ -37,6 +37,6 @@ FILTER <- c("GGMM") # selected size filter for genomic data
 # --- Model specific parameters
 NBOOST <- 3000 # maximum number of boosting rounds
 N_FOLD <- 5 # number of k-fold cross validation runs
-MAX_CLUSTER <- 8 # maximum number of clusters for parallel computing
+MAX_CLUSTER <- 20 # maximum number of clusters for parallel computing
 
 NBOOTSTRAP <- 20 # number of bootstrap rounds for script 05b

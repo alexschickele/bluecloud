@@ -11,7 +11,7 @@
 #' @return a .pdf in /graphic with the Y and Y_hat per station and variable importance
 
 model_eval <- function(bluecloud.wd = bluecloud_dir,
-                       by_target = FALSE,
+                       by_target = TRUE,
                        var_importance = FALSE){
   
   # --- Loading data
@@ -23,7 +23,7 @@ model_eval <- function(bluecloud.wd = bluecloud_dir,
   X0 <- as.data.frame(read_feather(paste0(bluecloud.wd,"/data/X.feather")))
   
   # --- Initializing outputs
-  y_hat <- r2_tar <- rmse_tar <- NULL
+  y_hat <- r2_tar <- r2cor_tar <- rmse_tar <- NULL
   
   # --- Predicting on the validation data
   for(cv in 1:N_FOLD){
@@ -49,11 +49,15 @@ model_eval <- function(bluecloud.wd = bluecloud_dir,
   # --- Target by target evaluation
   if(by_target==TRUE){
     for(t in 1:ncol(Y0)){
+      # numeric R2
       r2_tar <- c(r2_tar, calc_rsquared(as.matrix(Y0[,t]), as.matrix(y_hat[,t])))
+      # Correlation R2
+      r2cor_tar <- c(r2cor_tar, cor(as.matrix(Y0[,t]), as.matrix(y_hat[,t])))
       rmse_tar <- c(rmse_tar, sqrt(mean(as.matrix((Y0[,t]-y_hat[,t])^2), na.rm=TRUE)))
     }
     print("--- R2 by target :")
     print(round(r2_tar,2))
+    print(round(r2cor_tar,2))
     print("--- RMSE by target :")
     print(round(rmse_tar,2))
   }

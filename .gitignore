@@ -11,8 +11,12 @@
 *.Rproj.user
 data/*
 omic_data/*
+prototype/*
 *.Rproj.user
 *.p
 *.ipynb
 *.zip
 .Rproj.user
+*.pdf
+*.png
+*.jpg
