@@ -5,7 +5,7 @@
 
 query_data <- function(bluecloud.wd = bluecloud_dir,
                        CC_id = NULL,
-                       KEGG_p = "00910",
+                       KEGG_p = "00710",
                        CLUSTER_SELEC = list(N_CLUSTERS = 25, MIN_GENES = 2, MAX_GENES = 25),
                        ENV_METRIC = c("mean","sd","dist","bathy"),
                        relative = TRUE){
@@ -24,7 +24,7 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
       #   filter(str_detect(kegg_pathway, KEGG_p)) %>% 
       dplyr::group_by(CC) %>% 
       dplyr::summarise(max_kegg = max(n_kegg, na.rm = TRUE)) %>% 
-      filter(max_kegg == 1) %>% 
+      filter(max_kegg > 0) %>% 
       inner_join(tbl(db, "cluster_sort"), copy = TRUE) %>% 
       arrange(desc(n_station)) %>% 
       filter(n_genes >= !!CLUSTER_SELEC$MIN_GENES & n_genes <= !!CLUSTER_SELEC$MAX_GENES) %>% 
@@ -36,7 +36,7 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
     target <- query %>% 
       select(CC) %>% 
       inner_join(tbl(db, "data")) %>% 
-      select(c("Genes", "CC", "readCount", "Station", "Longitude", "Latitude", "Description", "Class", "Genus"))
+      select(c("Genes", "CC", "readCount", "Station", "Longitude", "Latitude", "KEGG_ko","KEGG_Module","Description", "Class", "Genus"))
   } else {
     target <- tbl(db, "data") %>% 
       filter(CC == CC_id)
@@ -48,12 +48,14 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
       left_join(tbl(db, "cluster_sort")) %>% 
       collect() %>% 
       group_by(CC, unknown_rate) %>% 
-      summarise(desc = paste(unique(Description), collapse = ", "),
+      summarise(kegg_ko = paste(unique(KEGG_ko), collapse = ", "),
+                kegg_module = paste(unique(KEGG_Module), collapse = ", "),
+                desc = paste(unique(Description), collapse = ", "),
                 class = paste(unique(Class), collapse = ", "),
                 genus = paste(unique(Genus), collapse = ", "))
   } else {
     CC_desc <- target %>% 
-      select("Genes","Description", "Class", "Genus") %>% 
+      select("Genes","KEGG_ko","KEGG_Module", "Description", "Class", "Genus") %>% 
       distinct() %>% 
       collect()
   }

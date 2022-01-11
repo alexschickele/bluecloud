@@ -12,6 +12,7 @@
 data/*
 omic_data/*
 prototype/*
+output/*
 *.Rproj.user
 *.p
 *.ipynb

@@ -104,8 +104,8 @@ dbSendQuery(db, "create index by_cluster_sort on cluster_sort (CC)")
 
 # --- 7. Add correspondence Cluster - KEGG_Pathway
 kegg_sort <- tbl(db, "data") %>% 
-  select("Genes", "CC", "KEGG_Pathway") %>% 
-  rename(kegg_pathway = KEGG_Pathway) %>% #Otherwise I cannot do the query() in the next script !! ... on BlueCLoud postgresql
+  select("Genes", "CC", "KEGG_Pathway", "KEGG_Module") %>% 
+  rename(kegg_pathway = KEGG_Pathway, kegg_module = KEGG_Module) %>% #Otherwise I cannot do the query() in the next script !! ... on BlueCLoud postgresql
   collect() %>% 
   mutate(n_kegg = str_count(kegg_pathway, "ko")) #Calculated out of SQL here to have read-only query later
 copy_to(db, kegg_sort, temporary = FALSE, na.rm = FALSE)

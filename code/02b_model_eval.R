@@ -12,7 +12,8 @@
 
 model_eval <- function(bluecloud.wd = bluecloud_dir,
                        by_target = TRUE,
-                       var_importance = FALSE){
+                       var_importance = FALSE,
+                       PDP = FALSE){
   
   # --- Loading data
   setwd(paste0(bluecloud.wd,"/data/"))
@@ -79,6 +80,24 @@ model_eval <- function(bluecloud.wd = bluecloud_dir,
     abline(v = c(30.5, 66.5, 89.5, 140.5), lty = "dotted")
     box()
   }
+  
+  # --- Partial dependence plots
+  if(!is.null(PDP)){
+    pdp <- array(NA, dim = c(100, ncol(Y0), ncol(X0), N_FOLD))
+    for(cv in 1:N_FOLD){
+      X_tr <- as.data.frame(read_feather(paste0(bluecloud.wd,"/data/", cv, "_X_tr.feather")))
+      m0 <- m[[cv]][[1]]
+      for(i in 1:ncol(X_tr)){
+        X_pdp <- matrix(NA, ncol = ncol(X_tr), nrow = 100, dimnames = list(NULL, colnames(X_tr))) %>% 
+          apply(1, function(x){x = apply(X_tr, 2, mean)}) %>% 
+          t() %>% 
+          as.data.frame()
+        X_pdp[,i] <- seq(min(X_tr[,i]), max(X_tr[,i]), length.out = 100)
+        pdp[,,i,cv] <- mbtr_predict(model = m0, X_pred = X_pdp, n_boosts = HYPERPARAMETERS$n_boost)
+      } # i env features
+    } # cv folds
+    pdp <- apply(pdp, c(1,2,3), mean)
+  } # if partial dependence plot
 
   # --- Calculating variable importance
   if(var_importance == TRUE){
@@ -118,6 +137,6 @@ model_eval <- function(bluecloud.wd = bluecloud_dir,
     box()
 
   } # var imp
-
+  return(list(r2, rmse, r2_tar, r2cor_tar, rmse_tar))
 
 } # end function
