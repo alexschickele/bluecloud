@@ -5,7 +5,7 @@
 
 query_data <- function(bluecloud.wd = bluecloud_dir,
                        CC_id = NULL,
-                       KEGG_p = "00710",
+                       KEGG_m = 165:172,
                        CLUSTER_SELEC = list(N_CLUSTERS = 25, MIN_GENES = 2, MAX_GENES = 25),
                        ENV_METRIC = c("mean","sd","dist","bathy"),
                        relative = TRUE){
@@ -19,12 +19,14 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
 
   # --- 1. Filter "data" by "cluster_sort"
   if(is.null(CC_id)){
-    query <- dbGetQuery(db, paste0("SELECT * FROM kegg_sort WHERE kegg_pathway LIKE '%", KEGG_p,"%'")) %>% 
+    query <- dbGetQuery(db, paste0("SELECT * FROM kegg_sort WHERE kegg_module LIKE '%", 
+                                   paste(KEGG_m, collapse = "%' OR kegg_module LIKE '%"), "%'")) %>% 
       # query <- tbl(db, "kegg_sort") %>% 
       #   filter(str_detect(kegg_pathway, KEGG_p)) %>% 
+      mutate(exclusivity = str_count(kegg_module, paste(c("-","NA",KEGG_m), collapse = "|"))/n_mod) %>% 
       dplyr::group_by(CC) %>% 
-      dplyr::summarise(max_kegg = max(n_kegg, na.rm = TRUE)) %>% 
-      filter(max_kegg > 0) %>% 
+      dplyr::summarise(max_kegg = max(n_kegg, na.rm = TRUE), max_mod = max(n_mod, na.rm = TRUE), min_exl = min(exclusivity)) %>% 
+      filter(max_kegg > 0 & max_mod > 0 & min_exl == 1) %>% 
       inner_join(tbl(db, "cluster_sort"), copy = TRUE) %>% 
       arrange(desc(n_station)) %>% 
       filter(n_genes >= !!CLUSTER_SELEC$MIN_GENES & n_genes <= !!CLUSTER_SELEC$MAX_GENES) %>% 
@@ -45,7 +47,7 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
   # --- 2. Get cluster functional description
   if(is.null(CC_id)){
     CC_desc <- target %>% 
-      left_join(tbl(db, "cluster_sort")) %>% 
+      inner_join(tbl(db, "cluster_sort")) %>% 
       collect() %>% 
       group_by(CC, unknown_rate) %>% 
       summarise(kegg_ko = paste(unique(KEGG_ko), collapse = ", "),
@@ -108,12 +110,25 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
   ID <- sort(ID$Station)
   write_feather(data.frame(Station = ID), path = paste0(bluecloud.wd,"/data/Station_ID.feather"))
   
-  # --- 7. Close connection
+  # --- 7. Plot CC vs kegg_modules
+  if(is.null(CC_id)){
+      CC_module <- matrix(NA, ncol = length(KEGG_m), nrow = CLUSTER_SELEC$N_CLUSTERS, 
+                          dimnames = list(CC_desc$CC, KEGG_m))
+      for(j in 1:nrow(CC_module)){
+        for(k in 1:ncol(CC_module)){
+          if(str_detect(CC_desc$kegg_module[j], as.character(KEGG_m[k])) == TRUE){CC_module[j,k] <- 1}
+        } #k module
+      } # j CC
+      CC_module <- CC_module[do.call(order, as.data.frame(CC_module)),]
+  } else {CC_module <- NULL}
+
+
+  # --- 8. Close connection
   print(paste("Number of stations :", nrow(X)))
   print(paste("Number of environmental features :", ncol(X)))
   print(paste("Number of gene/cluster targets :", ncol(Y)))
   
-  return(list(X=as.data.frame(X), Y=as.data.frame(Y), CC_desc = as.data.frame(CC_desc)))
+  return(list(X=as.data.frame(X), Y=as.data.frame(Y), CC_desc = as.data.frame(CC_desc), CC_module = CC_module))
   
   # --- Close connection
   dbDisconnect(db)

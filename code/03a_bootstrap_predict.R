@@ -133,11 +133,11 @@ cor_proj <- function(y_hat_m){
 }
 
 # --- Plot the maps ---
-map_proj <- function(proj, col, targetID = seq(1:nlayers(proj))){
+map_proj <- function(proj, col, targetID = seq(1:nlayers(proj)), targetNAME = seq(1:nlayers(proj))){
   par(mar=c(2,2,2,1))
   for(i in targetID){
     plot(proj[[i]], col = col[[i]], legend = FALSE, ylim=c(-90, 90), 
-         main= paste("Spatial relative abundance of target cluster n°",i))
+         main= paste("Spatial relative abundance:",targetNAME[i]))
     abline(h=c(66, 23, 0, -23, -66), lty = c("dotted","dotted","dashed","dotted","dotted"), lwd = c(1,1,1,1,1), col = "black")
   }
 }
