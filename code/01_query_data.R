@@ -6,7 +6,7 @@
 query_data <- function(bluecloud.wd = bluecloud_dir,
                        CC_id = NULL,
                        KEGG_m = 165:172,
-                       CLUSTER_SELEC = list(N_CLUSTERS = 25, MIN_GENES = 2, MAX_GENES = 25),
+                       CLUSTER_SELEC = list(N_CLUSTERS = 30, MIN_GENES = 5, EXCLUSIVITY_R = 1),
                        ENV_METRIC = c("mean","sd","dist","bathy"),
                        relative = TRUE){
   
@@ -26,12 +26,11 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
       mutate(exclusivity = str_count(kegg_module, paste(c("-","NA",KEGG_m), collapse = "|"))/n_mod) %>% 
       dplyr::group_by(CC) %>% 
       dplyr::summarise(max_kegg = max(n_kegg, na.rm = TRUE), max_mod = max(n_mod, na.rm = TRUE), min_exl = min(exclusivity)) %>% 
-      filter(max_kegg > 0 & max_mod > 0 & min_exl == 1) %>% 
+      filter(max_kegg > 0 & max_mod > 0 & min_exl >= CLUSTER_SELEC$EXCLUSIVITY_R) %>% 
       inner_join(tbl(db, "cluster_sort"), copy = TRUE) %>% 
-      arrange(desc(n_station)) %>% 
-      filter(n_genes >= !!CLUSTER_SELEC$MIN_GENES & n_genes <= !!CLUSTER_SELEC$MAX_GENES) %>% 
-      slice(1:CLUSTER_SELEC$N_CLUSTERS)
+      filter(n_genes >= !!CLUSTER_SELEC$MIN_GENES & n_station >= 20)
     
+    query_check <- query
     copy_to(db, query, overwrite = TRUE)
     query <- tbl(db, "query")
 
@@ -54,12 +53,14 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
                 kegg_module = paste(unique(KEGG_Module), collapse = ", "),
                 desc = paste(unique(Description), collapse = ", "),
                 class = paste(unique(Class), collapse = ", "),
-                genus = paste(unique(Genus), collapse = ", "))
+                genus = paste(unique(Genus), collapse = ", ")) %>% 
+      inner_join(query_check)
   } else {
     CC_desc <- target %>% 
       select("Genes","KEGG_ko","KEGG_Module", "Description", "Class", "Genus") %>% 
       distinct() %>% 
-      collect()
+      collect() %>% 
+      inner_join(query_check)
   }
   write_feather(CC_desc, path = paste0(bluecloud.wd,"/data/CC_desc.feather"))
 
@@ -79,8 +80,17 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
       left_join(tbl(db, "sum_station")) %>% 
       mutate_at(.vars = vars(c(-Station, -Latitude, -Longitude, -sum_reads)), .funs = ~ . / sum_reads)
   }
+  
+  # --- 4. Selecting the clusters most representative of the variability
+  e <- target %>% 
+    select(c(-Station, -Latitude, -Longitude, -sum_reads)) %>% 
+    collect() %>% 
+    escouf()
+  
+  target <- target %>% 
+    select(c(Station, Latitude, Longitude, e$vr[1:CLUSTER_SELEC$N_CLUSTERS]+3))
 
-  # --- 4. Building the final feature table "X"
+  # --- 5. Building the final feature table "X"
   X <- target %>% 
     select(Station) %>% 
     inner_join(tbl(db, "X0")) %>% 
@@ -91,7 +101,7 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
   
   # --- 5. Building the final target table "Y"
   Y <- target %>% 
-    select(-Latitude, -Longitude, -sum_reads) %>%
+    select(-Latitude, -Longitude) %>%
     collect() %>% 
     arrange(Station) %>% 
     select(-Station)
@@ -113,22 +123,21 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
   # --- 7. Plot CC vs kegg_modules
   if(is.null(CC_id)){
       CC_module <- matrix(NA, ncol = length(KEGG_m), nrow = CLUSTER_SELEC$N_CLUSTERS, 
-                          dimnames = list(CC_desc$CC, KEGG_m))
+                          dimnames = list(CC_desc$CC[e$vr[1:CLUSTER_SELEC$N_CLUSTERS]], KEGG_m))
       for(j in 1:nrow(CC_module)){
         for(k in 1:ncol(CC_module)){
-          if(str_detect(CC_desc$kegg_module[j], as.character(KEGG_m[k])) == TRUE){CC_module[j,k] <- 1}
+          if(str_detect(CC_desc$kegg_module[e$vr[1:CLUSTER_SELEC$N_CLUSTERS]][j], as.character(KEGG_m[k])) == TRUE){CC_module[j,k] <- 1}
         } #k module
       } # j CC
       CC_module <- CC_module[do.call(order, as.data.frame(CC_module)),]
   } else {CC_module <- NULL}
-
 
   # --- 8. Close connection
   print(paste("Number of stations :", nrow(X)))
   print(paste("Number of environmental features :", ncol(X)))
   print(paste("Number of gene/cluster targets :", ncol(Y)))
   
-  return(list(X=as.data.frame(X), Y=as.data.frame(Y), CC_desc = as.data.frame(CC_desc), CC_module = CC_module))
+  return(list(X=as.data.frame(X), Y=as.data.frame(Y), CC_desc = as.data.frame(CC_desc), CC_module = CC_module, e = e))
   
   # --- Close connection
   dbDisconnect(db)

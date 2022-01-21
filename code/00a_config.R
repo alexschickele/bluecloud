@@ -12,6 +12,9 @@ library(mvrsquared) #in shiny
 library(tidyverse) # in shiny
 library(RSQLite) # in shiny
 library(RPostgreSQL) # in shiny
+library(pastecs) # in shiny
+
+library(FactoMineR)
 
 # Used only in environmental and genomic data building
 # library(ncdf4)

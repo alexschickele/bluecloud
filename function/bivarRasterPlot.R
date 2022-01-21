@@ -30,20 +30,21 @@
 colmat <- function(pal = brewer.pal(3, "Reds"),
                    xlab = "Standard deviation",
                    ylab = "Relative abundance",
-                   saturation = 0,
+                   saturation = 1,
+                   value = 1,
                    plotLeg = TRUE){
   
   require(RColorBrewer)
   require(colorspace)
   
   # Function for desaturating colors by specified proportion
-  desat <- function(cols, sat=0.5) {
-    X <- diag(c(1, sat, 1)) %*% rgb2hsv(col2rgb(cols))
+  desat <- function(cols, sat=1, val = 1) {
+    X <- diag(c(1, sat, val)) %*% rgb2hsv(col2rgb(cols))
     hsv(X[1,], X[2,], X[3,])
   }
   
   nbreaks <- length(pal)
-  pal_sd <- desat(pal, saturation)
+  pal_sd <- desat(pal, saturation, value)
   
   col_matrix <- NULL
   for(i in 1:nbreaks){
@@ -85,8 +86,7 @@ bivar_map <- function(rasterx, rastery, colormatrix, cutx = NULL, cuty = NULL){
     }
   } # end if
   z <- setValues(rasterx,colorid[cbind(getValues(splitx),getValues(splity))])
-  col_plot <- colormatrix[minValue(splity):maxValue(splity),
-                          minValue(splitx):maxValue(splitx)]
+  col_plot <- colormatrix[min(getValues(z), na.rm = TRUE):max(getValues(z), na.rm = TRUE)]
 
   return(list(z, col_plot))
 }

@@ -80,53 +80,64 @@ model_proj <- function(bluecloud.wd = bluecloud_dir,
   r0 <- raster(res=res(features), ext=extent(features))
   
   y_hat_m <- apply(y_hat, c(1,2), mean)
-  y_hat_sd <- apply(y_hat, c(1,2), sd)
+  y_hat_m[y_hat_m<0] <- 1e-10 #Negative values (i.e. NA later) are model artefact. 
+                              #Rescaled to infinite small positive to be considered as
+                              # 0 when using raster::cut() in bivarmap
+  y_hat_cv <- apply(y_hat, c(1,2), cv)
+  y_hat_cv[y_hat_cv > 100] <- 100  #CV over 100% is rescaled to 100% for interpretation purpose
   
-  cutx <- seq(0,0.5,0.005)
+  cutx <- seq(0,100,1)
   cuty <- seq(0,1,0.01)
   
   # --- Rasterizing bivariate projections
-  custom_pal <- c("#700700", "#D23A4E", "#FBA35C", "#ECEF94", "#7FCBA4", "#60BBA7", "#47A0B2",
-                  "#3485BB", "#496AAE", "#5E4FA2", "#520061")
-  col_matrix <- colmat(pal = colorRampPalette(custom_pal)(100), saturation = 0,
-                       xlab = "Standard deviation", ylab = "Relative Abundance")
+  custom_pal <- rev(brewer.pal(10,"Spectral"))
+  col_matrix <- colmat(pal = colorRampPalette(custom_pal)(100), value = 0,
+                       xlab = "Coef. Variation (%)", ylab = "Relative Abundance")
+  y_hat_m_rescaled <- apply(y_hat_m, 2, function(x){x/max(x, na.rm = TRUE)})
   
   for(i in 1:ncol(y_hat_m)){
-    r_m <- setValues(r0, y_hat_m[,i])
-    r_sd <- setValues(r0, y_hat_sd[,i])
-    tmp <- bivar_map(rasterx = r_sd, rastery = r_m, colormatrix = col_matrix, cutx = cutx, cuty = cuty)
+    r_m <- setValues(r0, y_hat_m_rescaled[,i])
+    r_cv <- setValues(r0, y_hat_cv[,i])
+    tmp <- bivar_map(rasterx = r_cv, rastery = r_m, colormatrix = col_matrix, cutx = cutx, cuty = cuty)
     
     if(i == 1){
+      # proj <- tmp
       proj <- tmp[[1]]
       col <- list(tmp[[2]])
     } else {
+      # proj <- stack(proj,  tmp)
       proj <- stack(proj, tmp[[1]])
       col[[i]] <- tmp[[2]]
     }
   } # i target loop
-  proj[is.na(proj)] <- 1 # negative value (NA, model artefact) to zero (cell 1 in col_matrix)
+  
+  # --- SynchroniseNA with coastline etc...
   proj <- synchroniseNA(stack(features[[1]], proj))[[-1]]
   names(proj) <- paste(1:ncol(y_hat_m))
   
-  return(list(proj = proj, col_matrix = col_matrix, col = col, cutx = cutx, cuty = cuty, y_hat_m = y_hat_m))
+  for(i in 1:ncol(y_hat_m)){
+    y_hat_m[which(is.na(getValues(proj[[i]]))),i] <- NA
+  }
+  
+  return(list(proj = proj, col_matrix = col_matrix, col = col, y_hat_m = y_hat_m))
 } # end function
 
 # ==================  PART 3 : plotting projections ============================
 # --- Plot the legend ---
-legend_proj <- function(col_matrix, cutx, cuty){
+legend_proj <- function(col_matrix){
   par(mar=c(5,5,1,5))
-  colmat_plot(col_matrix, xlab = "Standard deviation", ylab = "Relative Abundance")
-  axis(side = 1, at = seq(0,1,0.1), labels = seq(0,0.5,0.05))
+  colmat_plot(col_matrix, xlab = "Coef. Variation", ylab = "Relative Abundance")
+  axis(side = 1, at = seq(0,1,0.2), labels = seq(0,100,20))
   axis(side = 2, at = seq(0,1,0.1), labels = seq(0,1,0.1))
 }
 
 # --- Plot the correlation ---
 cor_proj <- function(y_hat_m){
   par(mar = c(2,2,3,5))
-  proj_cor <- cor(y_hat_m) %>% 
+  proj_cor <- cor(y_hat_m, use = "pairwise.complete.obs") %>% 
     raster(xmn = 0.5, ymn = 0.5, xmx = ncol(y_hat_m)+0.5, ymx = ncol(y_hat_m)+0.5)
   proj_cor <- flip(proj_cor, direction = "y") %>%
-    plot(col = brewer.pal(10, "RdBu"), main = "pair-wise correlation", axes = FALSE)
+    plot(col = rev(brewer.pal(10, "RdBu")), main = "pair-wise correlation", axes = FALSE)
   
   axis(side = 1, at = seq(0,ncol(y_hat_m),1), labels = seq(0,ncol(y_hat_m),1))
   axis(side = 2, at = seq(0,ncol(y_hat_m),1), labels = seq(0,ncol(y_hat_m),1))
@@ -134,13 +145,14 @@ cor_proj <- function(y_hat_m){
 
 # --- Plot the maps ---
 map_proj <- function(proj, col, targetID = seq(1:nlayers(proj)), targetNAME = seq(1:nlayers(proj))){
-  par(mar=c(2,2,2,1))
+  # par(mar=c(2,2,2,1))
   for(i in targetID){
     plot(proj[[i]], col = col[[i]], legend = FALSE, ylim=c(-90, 90), 
          main= paste("Spatial relative abundance:",targetNAME[i]))
     abline(h=c(66, 23, 0, -23, -66), lty = c("dotted","dotted","dashed","dotted","dotted"), lwd = c(1,1,1,1,1), col = "black")
   }
 }
+
 
 
 

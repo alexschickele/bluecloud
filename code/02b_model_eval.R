@@ -137,6 +137,6 @@ model_eval <- function(bluecloud.wd = bluecloud_dir,
     box()
 
   } # var imp
-  return(list(r2, rmse, r2_tar, r2cor_tar, rmse_tar))
+  return(list(r2 = r2, rmse = rmse, r2_tar = r2_tar, r_cor_tar = r2cor_tar, rmse_tar = rmse_tar))
 
 } # end function
