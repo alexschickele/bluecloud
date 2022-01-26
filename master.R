@@ -24,13 +24,19 @@ MAX_CLUSTER <- 20
 #                paste0("M00",c(175,531,530,529,528,804)),
 #                paste0("M00",c(176,596,595,"021")))
 
-kegg_p0 = c("00710","00710","00710")
+kegg_p0 = c("00710","00710","00710","00710","00710","00710")
 kegg_m0 = list(paste0("M00",165:172),
+               paste0("M00",165:172),
+               paste0("M00",165:172),
+               paste0("M00",165:172),
                paste0("M00",165:172),
                paste0("M00",165:172))
 cluster_selec0 = list(c(30,5,0),
                      c(30,5,0.5),
-                     c(30,5,1))
+                     c(30,5,1),
+                     c(30,3,0),
+                     c(30,3,0.5),
+                     c(30,3,1))
 
 for(p in 1:length(kegg_p0)){
   kegg_p = kegg_p0[p]
@@ -86,13 +92,13 @@ for(p in 1:length(kegg_p0)){
   # PCA highlighting the selected CC among ubiquitous, abundant, exclusive etc...
   pca_res <- PCA(X = query$CC_desc[,c(2,8:13)], graph = FALSE)
   ind_col <- rep("black", nrow(query$CC_desc))
-  ind_col[query$e$vr[1:CLUSTER_SELEC$N_CLUSTERS]] <- "red"
+  ind_col[query$e$vr[1:cluster_selec[1]]] <- "red"
   plot.PCA(x = pca_res, choix = "ind", habillage = "ind", col.hab = ind_col)
   plot.PCA(x = pca_res, choix = "var")
   
   # 2. Run model & save ----------------------------------------------------------
   run <- model_run(bluecloud.wd = bluecloud_dir,
-                   HYPERPARAMETERS = data.frame(LEARNING_RATE = c(1e-2, 1e-2, 1e-2, 1e-2),
+                   HYPERPARAMETERS = data.frame(LEARNING_RATE = c(1e-3, 1e-3, 1e-3, 1e-3),
                                                 N_Q = c(10, 10, 10, 10),
                                                 MEAN_LEAF = c(20, 30, 40, 50)),
                    verbose = TRUE)
@@ -118,30 +124,44 @@ for(p in 1:length(kegg_p0)){
   save(query, eval, proj, file = paste0(bluecloud_dir, "/output/", output_dir, "/output.RData"))
   
   # 5. Do plot outputs & save ----------------------------------------------------
-  targetID_ordered <- seq(1:nlayers(proj$proj))[order(match(query$CC_desc$CC[query$e$vr[1:cluster_selec[1]]],rownames(query$CC_module)))]
-  
+  # --- New version with clustering
+  y_hat_m_rescaled <- apply(proj$y_hat_m, 2, function(x){x/max(x, na.rm = TRUE)})
+  colnames(y_hat_m_rescaled) <- query$CC_desc$CC[query$e$vr[1:cluster_selec[1]]]
+  tree <- dist(t(y_hat_m_rescaled)) %>% 
+    hclust(method = "ward.D2")
+  group <- cutree(tree, k = 5)
+
   pdf(paste0(bluecloud_dir, "/output/", output_dir, "/", output_dir, ".pdf"))
-  par(mfrow = c(4,2), mar=c(2,2,2,0))
+  par(mfrow = c(2,1),  mar = c(3,11,3,11))
+  barplot(rev(tree$height), ylab = "Euclidiian distance", xlab = "Number of clusters", main = "Connected Component (CC) cutoff", col = "black")
+  abline(h = tree$height[length(tree$height)-4], col = "red")
+  plot(tree, cex = 0.6, ylab= "Euclidian distance", main = "Connected Component (CC) dendrogram")
+  abline(h = tree$height[length(tree$height)-4], col = "red")
+  cor_proj(y_hat_m = proj$y_hat_m[,tree$order],
+           targetNAME = tree$labels[tree$order])
   legend_proj(col_matrix = proj$col_matrix)
-  cor_proj(y_hat_m = proj$y_hat_m[,order(match(query$CC_desc$CC[query$e$vr[1:cluster_selec[1]]],rownames(query$CC_module)))])
   
+  par(mfrow = c(4,2), mar=c(2,2,2,0))
   for(n in 1:cluster_selec[1]){
     map_proj(proj = proj$proj, 
              col = proj$col, 
-             targetID = targetID_ordered[n], 
-             targetNAME = query$CC_desc$CC[query$e$vr[1:cluster_selec[1]]])
-    map_scale <- max(proj$y_hat_m[,targetID_ordered[n]], na.rm = TRUE)
+             targetID = tree$order[n], 
+             targetNAME = tree$labels)
+    map_scale <- max(proj$y_hat_m[,tree$order[n]], na.rm = TRUE)
     barplot(c(map_scale, rep(0, 9)), ylim = c(0,1), border = NA, col = "black",
             main = "Description :")
     abline(v = c(0.2,1.2))
     title(main = "Scale :", adj = 0)
-    text(x = rep(2,4), y = c(0.8,0.6,0.4,0.2), cex = 0.8, adj = c(0,1),
-         labels = c(paste("N. Modules:", query$CC_desc$max_mod[query$e$vr[1:cluster_selec[1]]][targetID_ordered[n]]),
-                    paste("Modules:", query$CC_desc$kegg_module[query$e$vr[1:cluster_selec[1]]][targetID_ordered[n]]),
-                    paste("KOs:", query$CC_des$kegg_ko[query$e$vr[1:cluster_selec[1]]][targetID_ordered[n]]),
-                    paste("Class:", query$CC_desc$class[query$e$vr[1:cluster_selec[1]]][targetID_ordered[n]])))
+    text(x = rep(2,6), y = c(0.8,0.6,0.5,0.4,0.3,0.1), cex = 0.8, adj = c(0,1),
+         labels = c(paste("H. Clustering group:", group[tree$order][n]),
+                    paste("N. Modules:", query$CC_desc$max_mod[query$e$vr[1:cluster_selec[1]]][tree$order[n]]),
+                    paste("Modules:", query$CC_desc$kegg_module[query$e$vr[1:cluster_selec[1]]][tree$order[n]]),
+                    paste("KOs:", query$CC_des$kegg_ko[query$e$vr[1:cluster_selec[1]]][tree$order[n]]),
+                    paste("Unknown rate:", query$CC_desc$unknown_rate[query$e$vr[1:cluster_selec[1]]][tree$order[n]]),
+                    paste("Class:", query$CC_desc$class[query$e$vr[1:cluster_selec[1]]][tree$order[n]])))
   }
   dev.off()
+  
   
 } # global run loop
 

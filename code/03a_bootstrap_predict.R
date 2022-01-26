@@ -125,22 +125,20 @@ model_proj <- function(bluecloud.wd = bluecloud_dir,
 # ==================  PART 3 : plotting projections ============================
 # --- Plot the legend ---
 legend_proj <- function(col_matrix){
-  par(mar=c(5,5,1,5))
   colmat_plot(col_matrix, xlab = "Coef. Variation", ylab = "Relative Abundance")
   axis(side = 1, at = seq(0,1,0.2), labels = seq(0,100,20))
   axis(side = 2, at = seq(0,1,0.1), labels = seq(0,1,0.1))
 }
 
 # --- Plot the correlation ---
-cor_proj <- function(y_hat_m){
-  par(mar = c(2,2,3,5))
+cor_proj <- function(y_hat_m, targetNAME = seq(1:ncol(y_hat_m))){
   proj_cor <- cor(y_hat_m, use = "pairwise.complete.obs") %>% 
     raster(xmn = 0.5, ymn = 0.5, xmx = ncol(y_hat_m)+0.5, ymx = ncol(y_hat_m)+0.5)
   proj_cor <- flip(proj_cor, direction = "y") %>%
     plot(col = rev(brewer.pal(10, "RdBu")), main = "pair-wise correlation", axes = FALSE)
   
-  axis(side = 1, at = seq(0,ncol(y_hat_m),1), labels = seq(0,ncol(y_hat_m),1))
-  axis(side = 2, at = seq(0,ncol(y_hat_m),1), labels = seq(0,ncol(y_hat_m),1))
+  axis(side = 1, at = seq(1,ncol(y_hat_m),1), labels = targetNAME, las = 2, cex.axis = 0.4)
+  axis(side = 2, at = seq(1,ncol(y_hat_m),1), labels = targetNAME, las = 2, cex.axis = 0.4)
 }
 
 # --- Plot the maps ---
