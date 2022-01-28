@@ -135,7 +135,7 @@ cor_proj <- function(y_hat_m, targetNAME = seq(1:ncol(y_hat_m))){
   proj_cor <- cor(y_hat_m, use = "pairwise.complete.obs") %>% 
     raster(xmn = 0.5, ymn = 0.5, xmx = ncol(y_hat_m)+0.5, ymx = ncol(y_hat_m)+0.5)
   proj_cor <- flip(proj_cor, direction = "y") %>%
-    plot(col = rev(brewer.pal(10, "RdBu")), main = "pair-wise correlation", axes = FALSE)
+    plot(col = colorRampPalette(col = rev(brewer.pal(9, "RdBu")))(100), main = "pair-wise correlation", axes = FALSE)
   
   axis(side = 1, at = seq(1,ncol(y_hat_m),1), labels = targetNAME, las = 2, cex.axis = 0.4)
   axis(side = 2, at = seq(1,ncol(y_hat_m),1), labels = targetNAME, las = 2, cex.axis = 0.4)

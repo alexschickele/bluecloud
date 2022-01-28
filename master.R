@@ -129,16 +129,18 @@ for(p in 1:length(kegg_p0)){
   colnames(y_hat_m_rescaled) <- query$CC_desc$CC[query$e$vr[1:cluster_selec[1]]]
   tree <- dist(t(y_hat_m_rescaled)) %>% 
     hclust(method = "ward.D2")
-  group <- cutree(tree, k = 5)
+  tree_cut <- 5
+  group <- cutree(tree, k = tree_cut)
 
   pdf(paste0(bluecloud_dir, "/output/", output_dir, "/", output_dir, ".pdf"))
   par(mfrow = c(2,1),  mar = c(3,11,3,11))
-  barplot(rev(tree$height), ylab = "Euclidiian distance", xlab = "Number of clusters", main = "Connected Component (CC) cutoff", col = "black")
-  abline(h = tree$height[length(tree$height)-4], col = "red")
+  barplot(rev(tree$height), ylab = "Euclidian distance", xlab = "Number of clusters", main = "Connected Component (CC) cutoff",
+          col = c(rep("black", tree_cut), rep("gray75", cluster_selec[1]-tree_cut)))
+  abline(h = tree$height[length(tree$height)-tree_cut], col = "red")
   plot(tree, cex = 0.6, ylab= "Euclidian distance", main = "Connected Component (CC) dendrogram")
-  abline(h = tree$height[length(tree$height)-4], col = "red")
-  cor_proj(y_hat_m = proj$y_hat_m[,tree$order],
-           targetNAME = tree$labels[tree$order])
+  abline(h = tree$height[length(tree$height)-(tree_cut)], col = "red")
+  cor_proj(y_hat_m = proj$y_hat_m[,tree$order], targetNAME = tree$labels[tree$order])
+  abline(h = match(1:tree_cut, group[tree$order])-0.5, v = match(1:tree_cut, group[tree$order])-0.5)
   legend_proj(col_matrix = proj$col_matrix)
   
   par(mfrow = c(4,2), mar=c(2,2,2,0))
@@ -162,9 +164,72 @@ for(p in 1:length(kegg_p0)){
   }
   dev.off()
   
+  # 6. Multivariate analysis on map clusters for interpretation ----------------
+  # Create table
+  factor_raw <- list(query$CC_desc$kegg_module[query$e$vr[1:cluster_selec[1]]],
+                  query$CC_desc$kegg_ko[query$e$vr[1:cluster_selec[1]]],
+                  query$CC_desc$class[query$e$vr[1:cluster_selec[1]]])
+  factor_names <- lapply(factor_raw, function(x){x <- gsub(x, pattern = " ", replacement = "") %>% 
+                                                       strsplit(split = ",") %>% 
+                                                       unlist() %>% unique()
+                                                  x <- x[-which(x == "-" | x == "NA")]})
+  df <- data.frame(group = as.factor(group), unknown_rate = query$CC_desc$unknown_rate[query$e$vr[1:cluster_selec[1]]])
+  
+  for(j in 1:length(factor_raw)){
+    tmp <- matrix("FALSE", ncol = length(factor_names[[j]]), nrow = cluster_selec[1],
+                  dimnames = list(query$CC_desc$CC[query$e$vr[1:cluster_selec[1]]], factor_names[[j]]))
+    for(k in 1:nrow(tmp)){
+      for(l in 1:ncol(tmp)){
+        if(str_detect(factor_raw[[j]][k], as.character(factor_names[[j]][l])) == TRUE){tmp[k,l] <- "TRUE"}
+      } # factor_names
+    } # CC names
+    df <- cbind(df, tmp)
+  }# j variable groups
+
+  res_mfa <- MFA(base = df, group = c(1,1,16,35,14), type = c("n", "s" ,"n", "n", "n"), 
+                 name.group = c("group","unknown_rate","Module","KO","Class"), graph = FALSE)
+  
+  # Layout
+  pdf(paste0(bluecloud_dir, "/output/", output_dir, "/MFA.pdf"))
+  layout(mat = matrix(c(1,1,2,3,4,5), ncol = 3, nrow = 2, byrow = TRUE), widths = c(2,2,1), heights = c(2,1))
+  # Plot of individuals
+  par(mar = c(4,4,2,1))
+  plot(res_mfa$ind$coord[,1], res_mfa$ind$coord[,2], pch = 20, main = "Individuals",
+       xlab = paste0("Dimension 1 (", round(res_mfa$eig[1,2],2),"%)"), 
+       ylab = paste0("Dimension 2 (",round(res_mfa$eig[2,2],2) ,"%)"),
+       col = brewer.pal(tree_cut, "Set2")[group])
+  text(res_mfa$ind$coord[,1], res_mfa$ind$coord[,2], labels = names(group), 
+       col = brewer.pal(tree_cut, "Set2")[group], pos = 3, offset = 0.2, cex = 0.5)
+  grid()
+  abline(h = 0, v = 0, lty = "longdash")
+  
+  # Legend
+  par(mar = c(0,0,0,0))
+  plot.new()
+  legend(0, 0.7, legend = paste("Group", seq(1:5)), fill = brewer.pal(tree_cut, "Set2"), )
+  
+  # Dimension 1 : contribution
+  par(mar = c(6,4,2,2))
+  barplot(sort(res_mfa$quali.var$contrib[,1], decreasing = TRUE)[1:20], las = 2,
+          cex.names = 0.5, main  = "Quali.var contribution to dim. 1", ylab = "(%)",
+          col = rep(brewer.pal(4, "Set2"), res_mfa$call$group.mod[-2])[order(res_mfa$quali.var$contrib[,1], decreasing = TRUE)[1:20]])
+  abline(h = mean(res_mfa$quali.var$contrib[,1]), lty = "longdash")
+  
+  # Dimension 2 : contribution
+  barplot(sort(res_mfa$quali.var$contrib[,2], decreasing = TRUE)[1:20], las = 2,
+          cex.names = 0.5, main  = "Quali.var contribution to dim. 2", ylab = "(%)",
+          col = rep(brewer.pal(4, "Set2"), res_mfa$call$group.mod[-2])[order(res_mfa$quali.var$contrib[,2], decreasing = TRUE)[1:20]])
+  abline(h = mean(res_mfa$quali.var$contrib[,2]), lty = "longdash")
+  
+  # Legend
+  par(mar = c(0,0,0,0))
+  plot.new()
+  legend(0, 0.7, legend = res_mfa$call$name.group[-2], fill = brewer.pal(4, "Set2"))
+  dev.off()
   
 } # global run loop
 
+toto <- order(res_mfa$quali.var$contrib[,1], decreasing = TRUE)[1:20]
 
 
 # --- END

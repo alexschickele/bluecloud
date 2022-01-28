@@ -19,13 +19,15 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
 
   # --- 1. Filter "data" by "cluster_sort"
   if(is.null(CC_id)){
-    query <- dbGetQuery(db, paste0("SELECT * FROM kegg_sort WHERE kegg_module LIKE '%", 
+    query <- dbGetQuery(db, paste0("SELECT CC FROM kegg_sort WHERE kegg_module LIKE '%", 
                                    paste(KEGG_m, collapse = "%' OR kegg_module LIKE '%"), "%'")) %>% 
+      unique() %>% 
+      inner_join(tbl(db, "kegg_sort"), copy = TRUE) %>%
       # query <- tbl(db, "kegg_sort") %>% 
       #   filter(str_detect(kegg_pathway, KEGG_p)) %>% 
-      mutate(exclusivity = str_count(kegg_module, paste(c("-","NA",KEGG_m), collapse = "|"))/n_mod) %>% 
+      mutate(exclusivity = str_count(kegg_module, paste(c("-","NA",KEGG_m), collapse = "|"))/n_mod) %>%
       dplyr::group_by(CC) %>% 
-      dplyr::summarise(max_kegg = max(n_kegg, na.rm = TRUE), max_mod = max(n_mod, na.rm = TRUE), min_exl = min(exclusivity)) %>% 
+      dplyr::summarise(max_kegg = max(n_kegg, na.rm = TRUE), max_mod = max(n_mod, na.rm = TRUE), min_exl = min(exclusivity, na.rm = TRUE)) %>% 
       filter(max_kegg > 0 & max_mod > 0 & min_exl >= CLUSTER_SELEC$EXCLUSIVITY_R) %>% 
       inner_join(tbl(db, "cluster_sort"), copy = TRUE) %>% 
       filter(n_genes >= !!CLUSTER_SELEC$MIN_GENES & n_station >= 20)
