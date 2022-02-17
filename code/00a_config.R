@@ -15,6 +15,7 @@ library(RPostgreSQL) # in shiny
 library(pastecs) # in shiny
 
 library(FactoMineR)
+library(car)
 
 # Used only in environmental and genomic data building
 # library(ncdf4)

@@ -16,26 +16,33 @@ source("./code/03a_bootstrap_predict.R")
 MAX_CLUSTER <- 20
 
 # =========================== DEFINE PARAMETERS ================================
-# kegg_p0 = c("00190","00195","00710","00680","00910","00920")
-# kegg_m0 = list(paste0("M00",c(144:160,416,417)),
-#                paste0("M00",c(157,161:163)),
-#                paste0("M00",165:172),
-#                paste0("M00",c(567,357,356,563,358,608,174,346,345,344,378,935,422)),
-#                paste0("M00",c(175,531,530,529,528,804)),
-#                paste0("M00",c(176,596,595,"021")))
+kegg_p0 = c("00190","00195","00710","00680","00910","00920", "NRJ")
+kegg_m0 = list(paste0("M00",c(144:160,416,417)),
+               paste0("M00",c(157,161:163)),
+               paste0("M00",165:172),
+               paste0("M00",c(567,357,356,563,358,608,174,346,345,344,378,935,422)),
+               paste0("M00",c(175,531,530,529,528,804,"029",880)), # + urea cycle & molybdene cofactor
+               paste0("M00",c(176,596,595,"021")), 
+               paste0("M00",c(144:160,416,417,157,161:163,165:172,567,357,356,563,358,608,174,346,345,344,378,935,422,175,531,530,529,528,804,"029",880,176,596,595,"021")))
 
-kegg_p0 = c("00710","00710","00710","00710","00710","00710")
-kegg_m0 = list(paste0("M00",165:172),
-               paste0("M00",165:172),
-               paste0("M00",165:172),
-               paste0("M00",165:172),
-               paste0("M00",165:172),
-               paste0("M00",165:172))
-cluster_selec0 = list(c(30,5,0),
-                     c(30,5,0.5),
-                     c(30,5,1),
-                     c(30,3,0),
-                     c(30,3,0.5),
+# # Nutrient assimilation KO (N, Molybd Co, Urea)
+kegg_m = paste0("K", c("03639", "03637", "20967", "03635", "21142", "03831", "03638", "03750", "15376",
+                      "01948", "00611", "01940", "01755", "14681", "01476",
+                      "00367", "10534", "00372", "00366", "17877"))
+
+# kegg_p0 = c("00910","00910","00910","00910","00910","00910")
+# kegg_m0 = list(paste0("M00",c(175,528:531,804)),
+#                paste0("M00",c(175,528:531,804)),
+#                paste0("M00",c(175,528:531,804)),
+#                paste0("M00",c(175,528:531,804)),
+#                paste0("M00",c(175,528:531,804)),
+#                paste0("M00",c(175,528:531,804)))
+cluster_selec0 = list(c(20,3,1),
+                     c(20,3,1),
+                     c(20,3,1),
+                     c(20,3,1),
+                     c(20,3,1),
+                     c(20,3,1),
                      c(30,3,1))
 
 for(p in 1:length(kegg_p0)){
@@ -98,7 +105,7 @@ for(p in 1:length(kegg_p0)){
   
   # 2. Run model & save ----------------------------------------------------------
   run <- model_run(bluecloud.wd = bluecloud_dir,
-                   HYPERPARAMETERS = data.frame(LEARNING_RATE = c(1e-3, 1e-3, 1e-3, 1e-3),
+                   HYPERPARAMETERS = data.frame(LEARNING_RATE = c(1e-2, 1e-2, 1e-2, 1e-2),
                                                 N_Q = c(10, 10, 10, 10),
                                                 MEAN_LEAF = c(20, 30, 40, 50)),
                    verbose = TRUE)
@@ -127,9 +134,10 @@ for(p in 1:length(kegg_p0)){
   # --- New version with clustering
   y_hat_m_rescaled <- apply(proj$y_hat_m, 2, function(x){x/max(x, na.rm = TRUE)})
   colnames(y_hat_m_rescaled) <- query$CC_desc$CC[query$e$vr[1:cluster_selec[1]]]
-  tree <- dist(t(y_hat_m_rescaled)) %>% 
-    hclust(method = "ward.D2")
-  tree_cut <- 5
+  tree <- hclust(as.dist(1-cor(y_hat_m_rescaled, use = "pairwise.complete.obs")), method = "ward.D2")
+  # tree <- dist(t(y_hat_m_rescaled)) %>%
+  #   hclust(method = "ward.D2")
+  tree_cut <- 4
   group <- cutree(tree, k = tree_cut)
 
   pdf(paste0(bluecloud_dir, "/output/", output_dir, "/", output_dir, ".pdf"))
@@ -138,8 +146,8 @@ for(p in 1:length(kegg_p0)){
           col = c(rep("black", tree_cut), rep("gray75", cluster_selec[1]-tree_cut)))
   abline(h = tree$height[length(tree$height)-tree_cut], col = "red")
   plot(tree, cex = 0.6, ylab= "Euclidian distance", main = "Connected Component (CC) dendrogram")
-  abline(h = tree$height[length(tree$height)-(tree_cut)], col = "red")
-  cor_proj(y_hat_m = proj$y_hat_m[,tree$order], targetNAME = tree$labels[tree$order])
+  abline(h = tree$height[length(tree$height)-(tree_cut-1)], col = "red")
+  cor_proj(y_hat_m = y_hat_m_rescaled[,tree$order], targetNAME = tree$labels[tree$order])
   abline(h = match(1:tree_cut, group[tree$order])-0.5, v = match(1:tree_cut, group[tree$order])-0.5)
   legend_proj(col_matrix = proj$col_matrix)
   
@@ -172,9 +180,13 @@ for(p in 1:length(kegg_p0)){
   factor_names <- lapply(factor_raw, function(x){x <- gsub(x, pattern = " ", replacement = "") %>% 
                                                        strsplit(split = ",") %>% 
                                                        unlist() %>% unique()
-                                                  x <- x[-which(x == "-" | x == "NA")]})
+                                                 if(length(which(x == "-" | x == "NA")) > 0){
+                                                    x <- x[-which(x == "-" | x == "NA")]
+                                                 } else {x <-  x}
+                                                })
   df <- data.frame(group = as.factor(group), unknown_rate = query$CC_desc$unknown_rate[query$e$vr[1:cluster_selec[1]]])
   
+  # Binary variables
   for(j in 1:length(factor_raw)){
     tmp <- matrix("FALSE", ncol = length(factor_names[[j]]), nrow = cluster_selec[1],
                   dimnames = list(query$CC_desc$CC[query$e$vr[1:cluster_selec[1]]], factor_names[[j]]))
@@ -186,50 +198,84 @@ for(p in 1:length(kegg_p0)){
     df <- cbind(df, tmp)
   }# j variable groups
 
-  res_mfa <- MFA(base = df, group = c(1,1,16,35,14), type = c("n", "s" ,"n", "n", "n"), 
-                 name.group = c("group","unknown_rate","Module","KO","Class"), graph = FALSE)
-  
+  res_mfa <- MFA(base = df, group = c(1,1,length(factor_names[[1]]),length(factor_names[[2]]),length(factor_names[[3]])), type = c("n", "s" , "n", "n", "n"), 
+                 name.group = c("group","unknown_rate","Module","KO","Class"), num.group.sup = c(1,2,3) ,graph = FALSE)
+
   # Layout
   pdf(paste0(bluecloud_dir, "/output/", output_dir, "/MFA.pdf"))
   layout(mat = matrix(c(1,1,2,3,4,5), ncol = 3, nrow = 2, byrow = TRUE), widths = c(2,2,1), heights = c(2,1))
   # Plot of individuals
   par(mar = c(4,4,2,1))
-  plot(res_mfa$ind$coord[,1], res_mfa$ind$coord[,2], pch = 20, main = "Individuals",
-       xlab = paste0("Dimension 1 (", round(res_mfa$eig[1,2],2),"%)"), 
-       ylab = paste0("Dimension 2 (",round(res_mfa$eig[2,2],2) ,"%)"),
+  dataEllipse(res_mfa$ind$coord[,1], res_mfa$ind$coord[,2], levels = 0.8, groups = as.factor(group),
+              pch = 20, lwd = 1, main = "Individuals", plot.points = TRUE, robust = TRUE,
+              xlab = paste0("Dimension 1 (", round(res_mfa$eig[1,2],2),"%)"), 
+              ylab = paste0("Dimension 2 (",round(res_mfa$eig[2,2],2) ,"%)"),
+              col = brewer.pal(tree_cut, "Set2"))
+  points(res_mfa$ind$coord[,1], res_mfa$ind$coord[,2], pch = 20, 
        col = brewer.pal(tree_cut, "Set2")[group])
   text(res_mfa$ind$coord[,1], res_mfa$ind$coord[,2], labels = names(group), 
        col = brewer.pal(tree_cut, "Set2")[group], pos = 3, offset = 0.2, cex = 0.5)
   grid()
   abline(h = 0, v = 0, lty = "longdash")
-  
+
   # Legend
   par(mar = c(0,0,0,0))
   plot.new()
-  legend(0, 0.7, legend = paste("Group", seq(1:5)), fill = brewer.pal(tree_cut, "Set2"), )
+  legend(0, 0.7, legend = paste("Group", seq(1:tree_cut)), fill = brewer.pal(tree_cut, "Set2"), )
   
   # Dimension 1 : contribution
   par(mar = c(6,4,2,2))
   barplot(sort(res_mfa$quali.var$contrib[,1], decreasing = TRUE)[1:20], las = 2,
           cex.names = 0.5, main  = "Quali.var contribution to dim. 1", ylab = "(%)",
-          col = rep(brewer.pal(4, "Set2"), res_mfa$call$group.mod[-2])[order(res_mfa$quali.var$contrib[,1], decreasing = TRUE)[1:20]])
+          col = rep(brewer.pal(3, "Set2")[1:2], res_mfa$call$group.mod[-c(1,2,3)])[order(res_mfa$quali.var$contrib[,1], decreasing = TRUE)[1:20]])
   abline(h = mean(res_mfa$quali.var$contrib[,1]), lty = "longdash")
   
   # Dimension 2 : contribution
   barplot(sort(res_mfa$quali.var$contrib[,2], decreasing = TRUE)[1:20], las = 2,
           cex.names = 0.5, main  = "Quali.var contribution to dim. 2", ylab = "(%)",
-          col = rep(brewer.pal(4, "Set2"), res_mfa$call$group.mod[-2])[order(res_mfa$quali.var$contrib[,2], decreasing = TRUE)[1:20]])
+          col = rep(brewer.pal(3, "Set2")[1:2], res_mfa$call$group.mod[-c(1,2,3)])[order(res_mfa$quali.var$contrib[,2], decreasing = TRUE)[1:20]])
   abline(h = mean(res_mfa$quali.var$contrib[,2]), lty = "longdash")
   
   # Legend
   par(mar = c(0,0,0,0))
   plot.new()
-  legend(0, 0.7, legend = res_mfa$call$name.group[-2], fill = brewer.pal(4, "Set2"))
+  legend(0, 0.7, legend = res_mfa$call$name.group[-c(1,2,3)], fill = brewer.pal(3, "Set2")[1:2])
   dev.off()
   
+  # 7. Multivariate CA on map clusters for interpretation ----------------
+  # Create table
+  factor_raw <- list(query$CC_desc$kegg_module[query$e$vr[1:cluster_selec[1]]],
+                     query$CC_desc$kegg_ko[query$e$vr[1:cluster_selec[1]]],
+                     query$CC_desc$class[query$e$vr[1:cluster_selec[1]]])
+  factor_names <- lapply(factor_raw, function(x){x <- gsub(x, pattern = " ", replacement = "") %>% 
+                                                      strsplit(split = ",") %>% 
+                                                      unlist() %>% unique()
+                                                    if(length(which(x == "-" | x == "NA")) > 0){
+                                                      x <- x[-which(x == "-" | x == "NA")]
+                                                    } else {x <-  x}
+                                                    })
+  factor_names[[2]] <- kegg_m[paste0("ko:",kegg_m)%in%factor_names[[2]]]
+  df <- data.frame(group = as.factor(group), unknown_rate = query$CC_desc$unknown_rate[query$e$vr[1:cluster_selec[1]]])
+  
+  #Contingency table
+  df <- matrix(0, nrow = cluster_selec[1], ncol = length(factor_names[[2]]), dimnames = list(c(query$CC_desc$CC[query$e$vr[1:cluster_selec[1]]]), factor_names[[2]]))
+  for(j in 1:dim(df)[[1]]){
+    for(k in 1:dim(df)[[2]]){
+      if(str_detect(factor_raw[[2]][j], factor_names[[2]][k]) == TRUE){df[j,k] <- df[j,k]+1}
+    }
+  }
+  res_ca <- CA(df)
+  
+  #Contingency table
+  df <- matrix(0, nrow = tree_cut, ncol = length(factor_names[[2]]), dimnames = list(c(levels(group), factor_names[[2]])))
+  for(j in 1:dim(df)[[1]]){
+    for(k in 1:dim(df)[[2]]){
+      if(str_detect(factor_raw[[2]][j], factor_names[[2]][k]) == TRUE){df[j,k] <- df[j,k]+1}
+    }
+  }
+  res_ca <- CA(df)
+  
 } # global run loop
-
-toto <- order(res_mfa$quali.var$contrib[,1], decreasing = TRUE)[1:20]
 
 
 # --- END

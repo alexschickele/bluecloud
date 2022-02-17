@@ -82,7 +82,7 @@ model_eval <- function(bluecloud.wd = bluecloud_dir,
   }
   
   # --- Partial dependence plots
-  if(!is.null(PDP)){
+  if(PDP==TRUE){
     pdp <- array(NA, dim = c(100, ncol(Y0), ncol(X0), N_FOLD))
     for(cv in 1:N_FOLD){
       X_tr <- as.data.frame(read_feather(paste0(bluecloud.wd,"/data/", cv, "_X_tr.feather")))
