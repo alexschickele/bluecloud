@@ -100,43 +100,47 @@ model_eval <- function(bluecloud.wd = bluecloud_dir,
   } # if partial dependence plot
 
   # --- Calculating variable importance
+  var_count <- matrix(0, ncol = ncol(X0), nrow=N_FOLD)
+  colnames(var_count) <- colnames(X0)
+  
   if(var_importance == TRUE){
-    var_count <- matrix(0, ncol = ncol(X0), nrow=N_FOLD)
-    colnames(var_count) <- colnames(X0)
-    
     for(cv in 1:N_FOLD){
       m0 <- m[[cv]][[1]]
       n_tree <- length(m0$trees)
-      
-      for(t in 1:n_tree){
-        n_node <- length(m0$trees[[t]]$g$nodes$`_nodes`)
-        
-        for(n in 1:n_node){
-          var_nb <- m0$trees[[t]]$g$nodes$`_nodes`[[n]]$variable+1 #py index start at 0, R at 1
-          
-          if(!is.null(var_nb)){
-            dloss <- m0$trees[[t]]$g$nodes$`_nodes`[[n]]$loss*(-1)
-            var_count[cv,var_nb] <- var_count[cv,var_nb]+dloss
-          }
-        } # node loop
-      } # tree loop
+      var_count0 <- mcmapply(FUN = function(t, cv, nvar){
+                                    tmp <- matrix(0, ncol = nvar, nrow = 1)
+                                    n_node <-length(m0$trees[[t]]$g$nodes$`_nodes`)
+                                    for(n in 1:n_node){
+                                      var_nb <- m0$trees[[t]]$g$nodes$`_nodes`[[n]]$variable+1 #py index start at 0, R at 1
+                                      if(!is.null(var_nb)){
+                                        dloss <- m0$trees[[t]]$g$nodes$`_nodes`[[n]]$loss*(-1)
+                                        tmp[var_nb] <- tmp[var_nb]+dloss
+                                      }
+                                      return(tmp)}
+                                    }, # end if ; for ; function
+                             t = 1:n_tree, cv = cv, nvar = ncol(X0),
+                             SIMPLIFY = FALSE,
+                             USE.NAMES = FALSE,
+                             mc.cores = 50)
+      var_count0 <- Reduce(`+`, var_count0)
+      var_count[cv,] <- var_count0
     } # fold loop
     
-    var_imp <- t(apply(var_count, 1, function(x) (x*100)/sum(x, na.rm = TRUE))) %>% 
-      apply(2, mean)
-    
     # --- Plotting variable importance
-    par(mar = c(6, 4, 1, 1))
-    plot(x=seq(1,ncol(X0)), y=var_imp, type = 'h',
-         lwd=10, lend = 2, ylim=c(0,100), axes = FALSE,
-         ylab="variable importance (%)", xlab = "")
+    var_imp_order <- t(apply(var_count, 1, function(x) (x*100)/sum(x, na.rm = TRUE))) %>% 
+      apply(2, median) %>% 
+      order(decreasing = TRUE)
+    
+    var_imp <- t(apply(var_count, 1, function(x) (x*100)/sum(x, na.rm = TRUE)))[,var_imp_order]
+    
+    boxplot(var_imp, axes = FALSE, ylab="variable importance (%)", xlab = "", col = "gray50")
     abline(h=(seq(0,100,10)), lty="dotted", col="black")
     axis(side = 2, at = seq(0,100,10), labels = seq(0,100,10))
-    axis(side = 1, at = 1:ncol(X0), labels = colnames(X0), las = 2, 
+    axis(side = 1, at = 1:ncol(X0), labels = colnames(X0)[var_imp_order], las = 2, 
          cex.axis = if(ncol(X0) > 20) {0.7} else {1})
     box()
 
   } # var imp
-  return(list(r2 = r2, rmse = rmse, r2_tar = r2_tar, r_cor_tar = r2cor_tar, rmse_tar = rmse_tar))
+  return(list(r2 = r2, rmse = rmse, r2_tar = r2_tar, r_cor_tar = r2cor_tar, rmse_tar = rmse_tar, var_count = var_count))
 
 } # end function

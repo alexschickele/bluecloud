@@ -21,8 +21,8 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
   if(is.null(CC_id)){
     query <- dbGetQuery(db, paste0("SELECT CC FROM kegg_sort WHERE kegg_module LIKE '%",
                                    paste(KEGG_m, collapse = "%' OR kegg_module LIKE '%"), "%'")) %>%
-    # query <- dbGetQuery(db, paste0("SELECT CC FROM clusters WHERE KEGG_ko LIKE '%", 
-    #                               paste(KEGG_m, collapse = "%' OR KEGG_ko LIKE '%"), "%'")) %>% 
+    # query <- dbGetQuery(db, paste0("SELECT CC FROM kegg_sort WHERE kegg_ko LIKE '%",
+    #                               paste(KEGG_m, collapse = "%' OR kegg_ko LIKE '%"), "%'")) %>%
       unique() %>% 
       inner_join(tbl(db, "kegg_sort"), copy = TRUE) %>%
       # query <- tbl(db, "kegg_sort") %>% 
@@ -39,9 +39,9 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
     query <- tbl(db, "query")
 
     target <- query %>% 
-      select(CC) %>% 
+      dplyr::select("CC") %>% 
       inner_join(tbl(db, "data")) %>% 
-      select(c("Genes", "CC", "readCount", "Station", "Longitude", "Latitude", "KEGG_ko","KEGG_Module","Description", "Class", "Genus"))
+      dplyr::select(c("Genes", "CC", "readCount", "Station", "Longitude", "Latitude", "KEGG_ko","KEGG_Module","Description", "Class", "Genus"))
   } else {
     target <- tbl(db, "data") %>% 
       filter(CC == CC_id)
@@ -63,8 +63,8 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
     CC_desc <- target %>% 
       select("Genes","KEGG_ko","KEGG_Module", "Description", "Class", "Genus") %>% 
       distinct() %>% 
-      collect() %>% 
-      inner_join(query_check)
+      collect()
+    names(CC_desc) <- c("Genes","kegg_ko","kegg_module","desc","class","genus")
   }
   write_feather(CC_desc, path = paste0(bluecloud.wd,"/data/CC_desc.feather"))
 
@@ -87,39 +87,42 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
   
   # --- 4. Selecting the clusters most representative of the variability
   e <- target %>% 
-    select(c(-Station, -Latitude, -Longitude, -sum_reads)) %>% 
+    dplyr::select(c(-Station, -Latitude, -Longitude, -sum_reads)) %>% 
     collect() %>% 
     escouf()
   
   target <- target %>% 
-    select(c(Station, Latitude, Longitude, e$vr[1:CLUSTER_SELEC$N_CLUSTERS]+3))
+    dplyr::select(c(Station, Latitude, Longitude, e$vr[1:min(length(e$vr),CLUSTER_SELEC$N_CLUSTERS)]+3))
 
   # --- 5. Building the final feature table "X"
   X <- target %>% 
-    select(Station) %>% 
+    dplyr::select(Station) %>% 
     inner_join(tbl(db, "X0")) %>% 
-    select(contains(c(ENV_METRIC))) %>% 
+    dplyr::select(contains(c(ENV_METRIC))) %>% 
     collect()
   
   write_feather(X, path = paste0(bluecloud.wd,"/data/X.feather"))
   
   # --- 5. Building the final target table "Y"
   Y <- target %>% 
-    select(-Latitude, -Longitude) %>%
+    dplyr::select(-Latitude, -Longitude) %>%
     collect() %>% 
     arrange(Station) %>% 
-    select(-Station)
+    dplyr::select(-Station)
   Y <- Y/max(Y, na.rm = TRUE)
   if(relative == TRUE){
     Y <- apply(as.matrix(Y), 1, function(x){if(sum(x)>0){x = x/sum(x, na.rm = TRUE)} else {x = x}}) %>%
       aperm(c(2,1)) %>%
       as.data.frame()
   }
+  
+  # Hellinger like transformation
+  # Y <- Y^2
   write_feather(Y, path = paste0(bluecloud.wd,"/data/Y.feather"))
   
   # --- 6. Extract the vector of station names
   ID <- target %>% 
-    select(Station) %>% 
+    dplyr::select(Station) %>% 
     collect()
   ID <- sort(ID$Station)
   write_feather(data.frame(Station = ID), path = paste0(bluecloud.wd,"/data/Station_ID.feather"))
