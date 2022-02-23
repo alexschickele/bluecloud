@@ -68,6 +68,27 @@ for(p in 1:length(kegg_p0)){
   file.copy(from = paste0(data_dir, "/Y.feather"), to = paste0(bluecloud_dir, "/output/", output_dir))
   file.copy(from = paste0(data_dir, "/CC_desc.feather"), to = paste0(bluecloud_dir, "/output/", output_dir))
   
+  # Number of genes, unknown and escoufier selection
+  if(is.null(cc_id)==TRUE){
+    pdf(paste0(bluecloud_dir, "/output/", output_dir, "/CC_desc.pdf"))
+    layout(mat = matrix(c(1,2), ncol = 2, nrow = 1, byrow = TRUE), widths = c(2,1))
+    par(mar = c(2,6,3,1))
+    barplot(query$CC_desc$n_genes[query$e$vr], horiz = TRUE, xlim = c(0,50),
+            col = rep(c("#536f8c","gray80"), each = c(min(length(query$e$vr),cluster_selec[1]), length(query$e$vr)-min(length(query$e$vr),cluster_selec[1]))), 
+            main = "Genes per connected components", names.arg = query$CC_desc$CC[query$e$vr], las = 2, axes = FALSE, cex.names = 0.6)
+    barplot(query$CC_desc$n_genes[query$e$vr]*query$CC_desc$unknown_rate[query$e$vr]/100, add = TRUE, horiz = TRUE,
+            col = rep(c("#28425c","gray50"), each = c(min(length(query$e$vr),cluster_selec[1]), length(query$e$vr)-min(length(query$e$vr),cluster_selec[1]))))
+    par(new = TRUE)
+    abline(v = c(2,4,6,8,seq(10,50,10)), lty = "dotted")
+    abline(v = 0, h = 1.2*30, lwd = 2, lty = c("dashed","solid"), col = c("#536f8c","black"))
+    par(mar = c(2,0,3,1))
+    plot(x = query$e$RV, y = 1:42, ylab = "", main = "Escoufier rel. imp.", type = 'l', lwd = 2, axes = FALSE)
+    axis(side = 1, at = seq(0.4,1,0.1), labels = seq(0.4,1,0.1))
+    abline(v = c(seq(0.4,1,0.1)), lty = "dotted")
+    abline(v = 0.4, h = 30.2, lwd = 2, lty = c("dashed","solid"), col=c("#536f8c","black"))
+    dev.off()
+  }
+
   # Relation between KEGG_modules and the selected CC
   # png(filename = paste0(bluecloud_dir, "/output/", output_dir, "/CC_module_plot.png"))
   # image(query$CC_module, col = "black", axes = F, main = "Which KEGG module is related to which CC ?")
@@ -82,7 +103,6 @@ for(p in 1:length(kegg_p0)){
   # ind_col <- rep("black", nrow(query$CC_desc))
   # ind_col[query$e$vr[1:cluster_selec[1]]] <- "red"
   # plot.PCA(x = pca_res, choix = "ind", habillage = "ind", col.hab = ind_col)
-  # plot.PCA(x = pca_res, choix = "var")
   
   # 2. Run model & save ----------------------------------------------------------
   run <- model_run(bluecloud.wd = bluecloud_dir,
