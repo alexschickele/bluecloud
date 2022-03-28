@@ -2,7 +2,7 @@ import mbtr.losses as losses
 from ._splash import splash
 
 LOSS_MAP = {'mse': losses.MSE,
-            'mse_custom':losses.MSE_custom,
+            'tweedie':losses.TWEEDIE,
             'time_smoother': losses.TimeSmoother,
             'latent_variable': losses.LatentVariable,
             'linear_regression': losses.LinRegLoss,

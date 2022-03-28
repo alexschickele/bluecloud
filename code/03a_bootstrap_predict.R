@@ -76,7 +76,7 @@ model_proj <- function(bluecloud.wd = bluecloud_dir,
   cat(paste("---", Sys.time(), "// Done --- \n"))
   
   # --- Back Hellinger like transformation
-  # y_hat <- sqrt(y_hat, na.rm = TRUE)
+  # y_hat <- y_hat^2
   # cat(paste("--- Rescale post Hellinger done --- \n"))
   
   # ==================  PART 2 : calculate projections ============================

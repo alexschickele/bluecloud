@@ -19,20 +19,21 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
 
   # --- 1. Filter "data" by "cluster_sort"
   if(is.null(CC_id)){
-    query <- dbGetQuery(db, paste0("SELECT CC FROM kegg_sort WHERE kegg_module LIKE '%",
-                                   paste(KEGG_m, collapse = "%' OR kegg_module LIKE '%"), "%'")) %>%
-    # query <- dbGetQuery(db, paste0("SELECT CC FROM kegg_sort WHERE kegg_ko LIKE '%",
-    #                               paste(KEGG_m, collapse = "%' OR kegg_ko LIKE '%"), "%'")) %>%
+    # query <- dbGetQuery(db, paste0("SELECT CC FROM kegg_sort WHERE kegg_module LIKE '%",
+    #                                paste(KEGG_m, collapse = "%' OR kegg_module LIKE '%"), "%'")) %>%
+    query <- dbGetQuery(db, paste0("SELECT CC FROM kegg_sort WHERE kegg_ko LIKE '%",
+                                  paste(KEGG_m, collapse = "%' OR kegg_ko LIKE '%"), "%'")) %>%
       unique() %>% 
       inner_join(tbl(db, "kegg_sort"), copy = TRUE) %>%
       # query <- tbl(db, "kegg_sort") %>% 
       #   filter(str_detect(kegg_pathway, KEGG_p)) %>% 
-      mutate(exclusivity = str_count(kegg_module, paste(c("-","NA",KEGG_m), collapse = "|"))/n_mod) %>%
+      # mutate(exclusivity = str_count(kegg_module, paste(c("-","NA",KEGG_m), collapse = "|"))/n_mod) %>%
+      mutate(exclusivity = str_count(kegg_ko, paste(c("-","NA",KEGG_m), collapse = "|"))/n_ko) %>%
       dplyr::group_by(CC) %>% 
       dplyr::summarise(max_kegg = max(n_kegg, na.rm = TRUE), max_mod = max(n_mod, na.rm = TRUE), min_exl = min(exclusivity, na.rm = TRUE)) %>% 
-      filter(max_kegg > 0 & max_mod > 0 & min_exl >= CLUSTER_SELEC$EXCLUSIVITY_R) %>%
+      filter(min_exl >= CLUSTER_SELEC$EXCLUSIVITY_R) %>%
       inner_join(tbl(db, "cluster_sort"), copy = TRUE) %>% 
-      filter(n_genes >= !!CLUSTER_SELEC$MIN_GENES & n_station >= 20)
+      filter(n_genes >= !!CLUSTER_SELEC$MIN_GENES & n_station >= 10)
     
     query_check <- query
     copy_to(db, query, overwrite = TRUE)
@@ -86,13 +87,13 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
   }
   
   # --- 4. Selecting the clusters most representative of the variability
-  e <- target %>% 
-    dplyr::select(c(-Station, -Latitude, -Longitude, -sum_reads)) %>% 
-    collect() %>% 
-    escouf()
-  
-  target <- target %>% 
-    dplyr::select(c(Station, Latitude, Longitude, e$vr[1:min(length(e$vr),CLUSTER_SELEC$N_CLUSTERS)]+3))
+    e <- target %>% 
+      dplyr::select(c(-Station, -Latitude, -Longitude, -sum_reads)) %>% 
+      collect() %>% 
+      escouf()
+    
+    target <- target %>% 
+      dplyr::select(c(Station, Latitude, Longitude, e$vr[1:min(length(e$vr),CLUSTER_SELEC$N_CLUSTERS)]+3))
 
   # --- 5. Building the final feature table "X"
   X <- target %>% 
@@ -117,7 +118,7 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
   }
   
   # Hellinger like transformation
-  # Y <- Y^2
+  # Y <- sqrt(Y, na.rm = TRUE)
   write_feather(Y, path = paste0(bluecloud.wd,"/data/Y.feather"))
   
   # --- 6. Extract the vector of station names
@@ -131,12 +132,12 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
   if(is.null(CC_id)){
       CC_module <- matrix(NA, ncol = length(KEGG_m), nrow = CLUSTER_SELEC$N_CLUSTERS, 
                           dimnames = list(CC_desc$CC[e$vr[1:CLUSTER_SELEC$N_CLUSTERS]], KEGG_m))
-      for(j in 1:nrow(CC_module)){
-        for(k in 1:ncol(CC_module)){
-          if(str_detect(CC_desc$kegg_module[e$vr[1:CLUSTER_SELEC$N_CLUSTERS]][j], as.character(KEGG_m[k])) == TRUE){CC_module[j,k] <- 1}
-        } #k module
-      } # j CC
-      CC_module <- CC_module[do.call(order, as.data.frame(CC_module)),]
+      # for(j in 1:nrow(CC_module)){
+      #   for(k in 1:ncol(CC_module)){
+      #     if(str_detect(CC_desc$kegg_module[e$vr[1:CLUSTER_SELEC$N_CLUSTERS]][j], as.character(KEGG_m[k])) == TRUE){CC_module[j,k] <- 1}
+      #   } #k module
+      # } # j CC
+      # CC_module <- CC_module[do.call(order, as.data.frame(CC_module)),]
   } else {CC_module <- NULL}
 
   # --- 8. Close connection

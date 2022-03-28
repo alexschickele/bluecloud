@@ -57,6 +57,15 @@ reads <- vroom(file = paste0(bluecloud.wd, "/omic_data/SMAGs-v1.cds.95.mg.matrix
          Station = str_sub(code, -13, -11)) %>% 
   dplyr::select(-code) %>% 
   inner_join(dplyr::select(clusters, "Genes"))
+
+gene_length <- vroom(file = paste0(bluecloud.wd, "/omic_data/EukMAGS_SMAGs_nucl_concat_length"), col_names = c("Genes", "kb")) %>% 
+  inner_join(reads) %>% 
+  mutate(readperkb = readCount / kb)
+
+reads <- gene_length %>% 
+  dplyr::select(contains(c("Genes","readperkb","Station"))) %>% 
+  rename(readCount = readperkb)
+
 copy_to(db, reads, temporary = FALSE, overwrite = TRUE)
 
 # --- 4. Open "locs" and calculate sum_reads by station
@@ -107,7 +116,7 @@ kegg_sort <- tbl(db, "data") %>%
   dplyr::select("Genes", "CC", "KEGG_Pathway", "KEGG_Module", "KEGG_ko") %>% 
   rename(kegg_pathway = KEGG_Pathway, kegg_module = KEGG_Module, kegg_ko = KEGG_ko) %>% #Otherwise I cannot do the query() in the next script !! ... on BlueCLoud postgresql
   collect() %>% 
-  mutate(n_kegg = str_count(kegg_pathway, "ko"), n_mod = str_count(kegg_module, "M")) #Calculated out of SQL here to have read-only query later
+  mutate(n_kegg = str_count(kegg_pathway, "ko"), n_mod = str_count(kegg_module, "M"), n_ko = str_count(kegg_ko, "K")) #Calculated out of SQL here to have read-only query later
 copy_to(db, kegg_sort, temporary = FALSE, na.rm = FALSE)
 
 # --- 8. Pre-calculate feature table from nearest non-NA values

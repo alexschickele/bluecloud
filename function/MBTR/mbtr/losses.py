@@ -191,15 +191,9 @@ class MSE(Loss):
         optimal_response = H_inv @ G
         return optimal_response
 
-class MSE_custom(Loss):
+class TWEEDIE(Loss):
     """
-    Mean Squared Error loss, a.k.a. L2, Ordinary Least Squares.
-
-    .. math::
-
-            \\mathcal{L} = \\Vert y - w\\Vert_2^2 + \\frac{1}{2} w^T \\Lambda w
-
-    where :math:`\\Lambda` is the quadratic punishment matrix.
+    Loss for Tweedie distributed data (e.g. genomic read counts)
 
     :param lambda_weights:  quadratic penalization parameter for the leaves weights
     :param lambda_leaves: quadratic penalization parameter for the number of leaves
@@ -259,8 +253,9 @@ class MSE_custom(Loss):
 
         :return: grad, hessian_diags tuple, each of which is a (n_obs, n_t) matrix
         """
-        grad = (1 - y)/(1 - y_hat) - y/y_hat
-        hessian_diags = np.ones_like(grad)
+        p = 0
+        grad = (-y * np.exp(y_hat * (1-p))) + (np.exp(y_hat *(2-p)))
+        hessian_diags = (-y * (1-p) * np.exp(y_hat * (1-p))) + ((2-p) * np.exp(y_hat * (2-p)))
         return grad, hessian_diags
     
     def tree_loss(self, y, y_hat):
@@ -272,7 +267,11 @@ class MSE_custom(Loss):
 
         :return: tree loss
         """
-        return np.sum(- (y * np.log10(y_hat) + (1 - y) * np.log10(1 - y_hat)))
+        p = 0
+        a = y * np.exp(y_hat * (1-p))/(1-p)
+        b = np.exp(y_hat * (2-p))/(2-p)
+        
+        return np.sum(-a + b)
 
 
 class TimeSmoother(Loss):
