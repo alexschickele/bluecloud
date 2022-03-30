@@ -92,6 +92,8 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
       collect() %>% 
       escouf()
     
+    target0 <- target %>% 
+      dplyr::select(c(Station, Latitude, Longitude, e$vr[1:length(e$vr)]+3)) # for Y0
     target <- target %>% 
       dplyr::select(c(Station, Latitude, Longitude, e$vr[1:min(length(e$vr),CLUSTER_SELEC$N_CLUSTERS)]+3))
 
@@ -104,7 +106,20 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
   
   write_feather(X, path = paste0(bluecloud.wd,"/data/X.feather"))
   
-  # --- 5. Building the final target table "Y"
+  # --- 6. Building the final target table "Y0" for interpretation
+  Y0 <- target0 %>% 
+    dplyr::select(-Latitude, -Longitude) %>%
+    collect() %>% 
+    arrange(Station) %>% 
+    dplyr::select(-Station)
+  Y0 <- Y0/max(Y0, na.rm = TRUE)
+  if(relative == TRUE){
+    Y0 <- apply(as.matrix(Y0), 1, function(x){if(sum(x)>0){x = x/sum(x, na.rm = TRUE)} else {x = x}}) %>%
+      aperm(c(2,1)) %>%
+      as.data.frame()
+  }
+  
+  # --- 7. Building the final target table "Y"
   Y <- target %>% 
     dplyr::select(-Latitude, -Longitude) %>%
     collect() %>% 
@@ -117,35 +132,21 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
       as.data.frame()
   }
   
-  # Hellinger like transformation
-  # Y <- sqrt(Y, na.rm = TRUE)
   write_feather(Y, path = paste0(bluecloud.wd,"/data/Y.feather"))
   
-  # --- 6. Extract the vector of station names
+  # --- 8. Extract the vector of station names
   ID <- target %>% 
     dplyr::select(Station) %>% 
     collect()
   ID <- sort(ID$Station)
   write_feather(data.frame(Station = ID), path = paste0(bluecloud.wd,"/data/Station_ID.feather"))
   
-  # --- 7. Plot CC vs kegg_modules
-  if(is.null(CC_id)){
-      CC_module <- matrix(NA, ncol = length(KEGG_m), nrow = CLUSTER_SELEC$N_CLUSTERS, 
-                          dimnames = list(CC_desc$CC[e$vr[1:CLUSTER_SELEC$N_CLUSTERS]], KEGG_m))
-      # for(j in 1:nrow(CC_module)){
-      #   for(k in 1:ncol(CC_module)){
-      #     if(str_detect(CC_desc$kegg_module[e$vr[1:CLUSTER_SELEC$N_CLUSTERS]][j], as.character(KEGG_m[k])) == TRUE){CC_module[j,k] <- 1}
-      #   } #k module
-      # } # j CC
-      # CC_module <- CC_module[do.call(order, as.data.frame(CC_module)),]
-  } else {CC_module <- NULL}
-
-  # --- 8. Close connection
+  # --- 9. Close connection
   print(paste("Number of stations :", nrow(X)))
   print(paste("Number of environmental features :", ncol(X)))
   print(paste("Number of gene/cluster targets :", ncol(Y)))
   
-  return(list(X=as.data.frame(X), Y=as.data.frame(Y), CC_desc = as.data.frame(CC_desc), CC_module = CC_module, e = e))
+  return(list(X=as.data.frame(X), Y=as.data.frame(Y), Y0=as.data.frame(Y0), CC_desc = as.data.frame(CC_desc), e = e))
   
   # --- Close connection
   dbDisconnect(db)

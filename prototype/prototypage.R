@@ -1,3 +1,111 @@
+################################################################################
+################################################################################
+################################################################################
+
+# 5. Do plot outputs & save ----------------------------------------------------
+# --- Create rescaled map values
+y_hat_m_rescaled <- apply(proj$y_hat_m, 2, function(x){x/max(x, na.rm = TRUE)})
+if(is.null(cc_id) == TRUE){colnames(y_hat_m_rescaled) <- query$CC_desc$CC[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]]
+} else {colnames(y_hat_m_rescaled) <- query$CC_desc$Genes[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]]}
+
+# --- Do spatial clustering ---
+tree <- hclust(as.dist(1-cor(y_hat_m_rescaled, use = "pairwise.complete.obs")), method = "ward.D2")
+tree_cut <- 4
+group <- cutree(tree, k = tree_cut)
+
+# --- Start PDF with clustering related plots
+pdf(paste0(bluecloud_dir, "/output/", output_dir, "/", output_dir, ".pdf"))
+par(mfrow = c(2,1),  mar = c(3,11,3,11))
+barplot(rev(tree$height), ylab = "Euclidian distance", xlab = "Number of clusters", main = "Connected Component (CC) cutoff",
+        col = c(rep("black", tree_cut), rep("gray75", cluster_selec[1]-tree_cut)))
+abline(h = tree$height[length(tree$height)-tree_cut], col = "red")
+plot(tree, cex = 0.6, ylab= "Euclidian distance", main = "Connected Component (CC) dendrogram")
+abline(h = tree$height[length(tree$height)-(tree_cut-1)], col = "red")
+cor_proj(y_hat_m = y_hat_m_rescaled[,tree$order], targetNAME = tree$labels[tree$order])
+abline(h = match(1:tree_cut, group[tree$order])-0.5, v = match(1:tree_cut, group[tree$order])-0.5)
+legend_proj(col_matrix = proj$col_matrix)
+
+# --- Continue with map, labels and related nn_CC / nn_KO
+par(mfrow = c(4,2), mar=c(2,2,2,0))
+for(n in 1:min(length(query$e$vr),cluster_selec[1])){
+  map_proj(proj = proj$proj, 
+           col = proj$col, 
+           targetID = tree$order[n], 
+           targetNAME = tree$labels)
+  map_scale <- max(proj$y_hat_m[,tree$order[n]], na.rm = TRUE)
+  barplot(c(map_scale, rep(0, 9)), ylim = c(0,1), border = NA, col = "black",
+          main = "Description :")
+  abline(v = c(0.2,1.2))
+  title(main = "Scale :", adj = 0)
+  
+  linked_CC <- query$CC_desc$CC[query$e$vr][which(query$nn_ca$nn_CC == tree$labels[tree$order[n]])][-1] %>% paste(collapse = ",")
+  linked_KO <- query$CC_desc$kegg_ko[query$e$vr][which(query$nn_ca$nn_CC == tree$labels[tree$order[n]])][-1] %>% 
+    strsplit(",") %>% unlist() %>% unique() %>% paste(collapse = ",")
+  
+  text(x = rep(2,7), y = c(0.9,0.7,0.6,0.5,0.4,0.2,0.1), cex = 0.8, adj = c(0,1),
+       labels = c(paste("H. Clustering group:", group[tree$order][n]),
+                  paste("KOs:", query$CC_des$kegg_ko[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]][tree$order[n]]),
+                  paste("Unknown rate:", query$CC_desc$unknown_rate[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]][tree$order[n]]),
+                  paste("nn_CCs:", linked_CC),
+                  paste("nn_KOs:", linked_KO),
+                  paste("Class:", query$CC_desc$class[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]][tree$order[n]]),
+                  paste("Genus:", query$CC_desc$genus[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]][tree$order[n]])))
+}
+dev.off()
+
+
+
+
+################################################################################
+################################################################################
+################################################################################
+
+# --- Clustering test
+load(paste0(bluecloud_dir, "/prototype/y_hat_m.RData"))
+y_hat_m_rescale <- apply(y_hat_m, 2, function(x){x/max(x, na.rm = TRUE)})
+dist <- dist(t(y_hat_m_rescale))
+tree <- hclust(dist, method = "ward.D2")
+barplot(tree$height)
+plot(tree)
+clusters <- cutree(tree, k = 5)
+
+
+
+n <- 100
+df <- tibble(
+  x1=rnorm(n),
+  x2=rnorm(n),
+  y1 = 2*x1 + 0.5*x2^2 + runif(n),
+  y2 = 2*x1 + 0.7*x2^2 + runif(n),
+  y3 = -2*x1 - 0.5*x2^2 + runif(n),
+  y4 = -1.5*x1 - 0.5*x2^2 + runif(n)
+)
+dist <- cor(select(df, starts_with("y")))
+# no...
+dist <- dist(t(select(df, starts_with("y"))))
+# TODO faut rescaler à 1
+dist
+plot(hclust(dist, method="ward.D2"))
+
+
+
+
+# --- END
+
+kegg_p0 = 1
+
+for(i in 1:length(kegg_p0)){
+  kegg_p = kegg_p0[i]
+  cc_id  = NULL
+  
+  toto = 2:10
+  
+  print(i)
+  kegg_p0 = toto
+}
+
+
+
 # try to connect to  bluecloud db
 
 library(DBI)

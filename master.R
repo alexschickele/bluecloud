@@ -96,8 +96,22 @@ for(p in 1:length(kegg_p0)){
   #   dev.off()
   # }
 
-  # Nearest neighboor to escoufier selected points
+  # Assign points to the nearest escoufier selected point (correspondent analysis)
+  res_ca <- CA(query$Y0, graph = FALSE)
+  plot(res_ca$col$coord[,1], res_ca$col$coord[,2], pch = 19,
+       xlab = paste0("Dimension 1 (", round(res_ca$eig[1,2],2),"%)"), 
+       ylab = paste0("Dimension 2 (",round(res_ca$eig[2,2],2) ,"%)"))
+  points(res_ca$col$coord[1:cluster_selec[1],1], res_ca$col$coord[1:cluster_selec[1],2], pch = 19, col = "red")
   
+  dist_ca <- dist(res_ca$col$coord) %>% as.matrix()
+  dist_ca <- dist_ca[,1:cluster_selec[1]]
+
+  nn_ca <- data.frame(CC = dimnames(dist_ca)[[1]],
+                      pos_CC = 1:nrow(dist_ca),
+                      nn_CC = apply(dist_ca, 1, function(x){x = names(which(x == min(x)))}),
+                      pos_nn_CC = apply(dist_ca, 1, function(x){x = which(x == min(x))}))
+
+  query[["nn_ca"]] <- nn_ca
   
   # 2. Run model & save ----------------------------------------------------------
   run <- model_run(bluecloud.wd = bluecloud_dir,
@@ -129,16 +143,17 @@ for(p in 1:length(kegg_p0)){
 } # global run loop    
   
   # 5. Do plot outputs & save ----------------------------------------------------
-  # --- New version with clustering
+  # --- Create rescaled map values
   y_hat_m_rescaled <- apply(proj$y_hat_m, 2, function(x){x/max(x, na.rm = TRUE)})
   if(is.null(cc_id) == TRUE){colnames(y_hat_m_rescaled) <- query$CC_desc$CC[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]]
   } else {colnames(y_hat_m_rescaled) <- query$CC_desc$Genes[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]]}
+  
+  # --- Do spatial clustering ---
   tree <- hclust(as.dist(1-cor(y_hat_m_rescaled, use = "pairwise.complete.obs")), method = "ward.D2")
-  # tree <- dist(t(y_hat_m_rescaled)) %>%
-  #   hclust(method = "ward.D2")
   tree_cut <- 4
   group <- cutree(tree, k = tree_cut)
-
+  
+  # --- Start PDF with clustering related plots
   pdf(paste0(bluecloud_dir, "/output/", output_dir, "/", output_dir, ".pdf"))
   par(mfrow = c(2,1),  mar = c(3,11,3,11))
   barplot(rev(tree$height), ylab = "Euclidian distance", xlab = "Number of clusters", main = "Connected Component (CC) cutoff",
@@ -150,6 +165,7 @@ for(p in 1:length(kegg_p0)){
   abline(h = match(1:tree_cut, group[tree$order])-0.5, v = match(1:tree_cut, group[tree$order])-0.5)
   legend_proj(col_matrix = proj$col_matrix)
   
+  # --- Continue with map, labels and related nn_CC / nn_KO
   par(mfrow = c(4,2), mar=c(2,2,2,0))
   for(n in 1:min(length(query$e$vr),cluster_selec[1])){
     map_proj(proj = proj$proj, 
@@ -161,12 +177,18 @@ for(p in 1:length(kegg_p0)){
             main = "Description :")
     abline(v = c(0.2,1.2))
     title(main = "Scale :", adj = 0)
+    
+    linked_CC <- query$CC_desc$CC[query$e$vr][which(query$nn_ca$nn_CC == tree$labels[tree$order[n]])][-1] %>% 
+      paste(collapse = ",")
+    linked_KO <- query$CC_desc$kegg_ko[query$e$vr][which(query$nn_ca$nn_CC == tree$labels[tree$order[n]])][-1] %>% 
+      strsplit(",") %>% unlist() %>% unique() %>% paste(collapse = ",")
+    
     text(x = rep(2,7), y = c(0.9,0.7,0.6,0.5,0.4,0.2,0.1), cex = 0.8, adj = c(0,1),
          labels = c(paste("H. Clustering group:", group[tree$order][n]),
-                    paste("N. Modules:", query$CC_desc$max_mod[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]][tree$order[n]]),
-                    paste("Modules:", query$CC_desc$kegg_module[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]][tree$order[n]]),
                     paste("KOs:", query$CC_des$kegg_ko[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]][tree$order[n]]),
                     paste("Unknown rate:", query$CC_desc$unknown_rate[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]][tree$order[n]]),
+                    paste("nn_CCs:", linked_CC),
+                    paste("nn_KOs:", linked_KO),
                     paste("Class:", query$CC_desc$class[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]][tree$order[n]]),
                     paste("Genus:", query$CC_desc$genus[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]][tree$order[n]])))
   }
@@ -249,36 +271,38 @@ for(p in 1:length(kegg_p0)){
   
   # 7. Specific correlations to test -------------------------------------------
   # Defining the different maps to plot
-  plot_list <- list(RUBISCO = "01601|01602",
-                    C4 = "00028|00029|01610",
-                    PEPCK = "01610",
-                    ME_NADP = "00029",
-                    ME_NAD = "00028")
-  
-  plot_list <- list(Glu1 = "264",
-                    Glu2 = "265",
-                    Glu3 = "284")
+  # plot_list <- list(RUBISCO = "01601|01602",
+  #                   C4 = "00028|00029|01610",
+  #                   PEPCK = "01610",
+  #                   ME_NADP = "00029",
+  #                   ME_NAD = "00028")
+  # 
+  # plot_list <- list(Glu1 = "264",
+  #                   Glu2 = "265",
+  #                   Glu3 = "284")
   
   plot_list <- list(PPC = "1595",
-                    GOT = "814|14272",
+                    GOT = "14454|14455",
                     PEPCK = "01610",
+                    MDH = "00024|00025|00026",
                     ME_NADP = "00029",
                     ME_NAD = "00028",
-                    MDH = "00024|00025|00026",
+                    GPT = "00814|14272",
                     PPDK = "1006")
 
-  CC_desc_e <- query$CC_desc[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])],]
+  CC_desc_e <- query$CC_desc[query$e$vr,] %>% inner_join(query$nn_ca)
   r0 <- stack(paste0(data.wd,"/features"))[[1]]
   
-  proj_data <- proj$y_hat_m
+  proj_data <- y_hat_m_rescaled
   proj_out <- NULL
   taxo_out <- NULL
 
   par(mfrow = c(5,2))
   for(j in 1:length(plot_list)){
     # Extract spatial data
-    id <- which(str_detect(CC_desc_e$kegg_ko, plot_list[[j]])==TRUE)
-    tmp <- apply(proj_data[,id], 1, sum)
+    id <- CC_desc_e$pos_nn_CC[which(str_detect(CC_desc_e$kegg_ko, plot_list[[j]])==TRUE)]
+    
+    tmp <- apply(proj_data[,id], 1, mean)
     tmp_proj <- setValues(r0, tmp)
     
     par(mar = c(2,1,2,2))
@@ -308,9 +332,10 @@ for(p in 1:length(kegg_p0)){
   colnames(proj_out) <- colnames(taxo_out) <- names(plot_list)
   
   # Supplementary plots
-  cor(proj_out, use = "pairwise.complete.obs")
   library(vegan)
-  vegdist(t(taxo_out), "bray")
+  map_similarity <- as.dist(cor(proj_out, use = "pairwise.complete.obs"))
+  taxo_similarity <- 1-vegdist(t(taxo_out), "bray")
+  mantel(taxo_similarity, map_similarity, method = "pearson", permutations = 1e+5)
 
   
   
