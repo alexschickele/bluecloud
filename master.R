@@ -16,7 +16,7 @@ source("./code/03a_bootstrap_predict.R")
 MAX_CLUSTER <- 20
 
 # =========================== DEFINE PARAMETERS ================================
-kegg_p0 = c("CCMlight", "Glu", "N", "C4ko","C4ko")
+kegg_p0 = c("CCMlight", "Glu", "N", "C4ko","C4ko", "C4ko","Nglu")
 kegg_m0 = list(paste0("K",c("01601","01602",
                             "01743","01674","18245","18246",
                             "00028","00029","01610")),
@@ -25,13 +25,18 @@ kegg_m0 = list(paste0("K",c("01601","01602",
                             "01948","00611","01755", # Urea in and out to citrate
                             "01915","00265","00264","00284")), # GS I to III)
                paste0("K",c("01595","00051","00028","00029","00814","14272","01006","14454","14455","00024","00025","00026","01610")),
-               paste0("K",c("01595","00051","00028","00029","00814","14272","01006","14454","14455","00024","00025","00026","01610")))
+               paste0("K",c("01595","00051","00028","00029","00814","14272","01006","14454","14455","00024","00025","00026","01610")),
+               paste0("K",c("01595","00051","00028","00029","00814","14272","01006","14454","14455","00024","00025","00026","01610")),
+               paste0("K",c("00367","10534","00372","00360","00366","17877", #NR + NiR
+                            "01915","00265","00264","00284"))) # GS I to III
 
 cluster_selec0 = list(c(50,1,1),
                       c(50,1,0),
+                      c(50,1,0),
                       c(50,1,1),
-                      c(50,1,1),
-                      c(50,3,1))
+                      c(50,3,1),
+                      c(50,1,0.5),
+                      c(50,1,0.5))
 
 for(p in 1:length(kegg_p0)){
   kegg_p = kegg_p0[p]
@@ -97,13 +102,13 @@ for(p in 1:length(kegg_p0)){
   # }
 
   # Assign points to the nearest escoufier selected point (correspondent analysis)
-  res_ca <- CA(query$Y0, graph = FALSE)
+  res_ca <- CA(query$Y0, graph = FALSE, ncp = 50)
   plot(res_ca$col$coord[,1], res_ca$col$coord[,2], pch = 19,
        xlab = paste0("Dimension 1 (", round(res_ca$eig[1,2],2),"%)"), 
        ylab = paste0("Dimension 2 (",round(res_ca$eig[2,2],2) ,"%)"))
   points(res_ca$col$coord[1:cluster_selec[1],1], res_ca$col$coord[1:cluster_selec[1],2], pch = 19, col = "red")
-  
-  dist_ca <- dist(res_ca$col$coord) %>% as.matrix()
+  ndim_ca <- which(res_ca$eig[,3]>80)[1]
+  dist_ca <- dist(res_ca$col$coord[,1:ndim_ca]) %>% as.matrix()
   dist_ca <- dist_ca[,1:cluster_selec[1]]
 
   nn_ca <- data.frame(CC = dimnames(dist_ca)[[1]],
@@ -150,7 +155,7 @@ for(p in 1:length(kegg_p0)){
   
   # --- Do spatial clustering ---
   tree <- hclust(as.dist(1-cor(y_hat_m_rescaled, use = "pairwise.complete.obs")), method = "ward.D2")
-  tree_cut <- 4
+  tree_cut <- 8
   group <- cutree(tree, k = tree_cut)
   
   # --- Start PDF with clustering related plots
@@ -271,20 +276,23 @@ for(p in 1:length(kegg_p0)){
   
   # 7. Specific correlations to test -------------------------------------------
   # Defining the different maps to plot
-  # plot_list <- list(RUBISCO = "01601|01602",
-  #                   C4 = "00028|00029|01610",
-  #                   PEPCK = "01610",
-  #                   ME_NADP = "00029",
-  #                   ME_NAD = "00028")
-  # 
-  # plot_list <- list(Glu1 = "264",
-  #                   Glu2 = "265",
-  #                   Glu3 = "284")
+  plot_list <- list(RUBISCO = "01601|01602",
+                    C4 = "00028|00029|01610",
+                    PEPCK = "01610",
+                    ME_NADP = "00029",
+                    ME_NAD = "00028")
+
+  plot_list <- list(NR = "00367|00372|00360|10534",
+                    NiR  = "00366|17877",
+                    Glu1 = "264",
+                    Glu2 = "265",
+                    Glu3 = "284")
   
   plot_list <- list(PPC = "1595",
                     GOT = "14454|14455",
                     PEPCK = "01610",
                     MDH = "00024|00025|00026",
+                    MD = "00051",
                     ME_NADP = "00029",
                     ME_NAD = "00028",
                     GPT = "00814|14272",
@@ -301,12 +309,13 @@ for(p in 1:length(kegg_p0)){
   for(j in 1:length(plot_list)){
     # Extract spatial data
     id <- CC_desc_e$pos_nn_CC[which(str_detect(CC_desc_e$kegg_ko, plot_list[[j]])==TRUE)]
+    print(paste("---", names(plot_list[j]), "// Nb of CC :", length(id), "---"))
     
     tmp <- apply(proj_data[,id], 1, mean)
     tmp_proj <- setValues(r0, tmp)
     
     par(mar = c(2,1,2,2))
-    plot(tmp_proj, main = paste(names(plot_list[j]), "- abundance"), col = colorRampPalette(col = rev(brewer.pal(10, "Spectral")))(100))
+    plot(tmp_proj, main = paste(names(plot_list[j]), "// Nb of CC :", length(id)), col = colorRampPalette(col = rev(brewer.pal(10, "Spectral")))(100))
     
     # Taxonomic proportions
     df <- matrix(0, nrow = length(id), ncol = length(factor_names[[3]]), dimnames = list(CC_desc_e$CC[id], factor_names[[3]]))
@@ -336,6 +345,7 @@ for(p in 1:length(kegg_p0)){
   map_similarity <- as.dist(cor(proj_out, use = "pairwise.complete.obs"))
   taxo_similarity <- 1-vegdist(t(taxo_out), "bray")
   mantel(taxo_similarity, map_similarity, method = "pearson", permutations = 1e+5)
+  print(map_similarity)
 
   
   
