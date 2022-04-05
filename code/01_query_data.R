@@ -42,7 +42,12 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
     target <- query %>% 
       dplyr::select("CC") %>% 
       inner_join(tbl(db, "data")) %>% 
-      dplyr::select(c("Genes", "CC", "readCount", "Station", "Longitude", "Latitude", "KEGG_ko","KEGG_Module","Description", "Class", "Genus"))
+      dplyr::select(c("Genes", "CC", "readCount", "Station", "Longitude", "Latitude", "KEGG_ko","KEGG_Module","Description", "Class", "Genus")) %>% 
+      collect()
+    target <- target %>% mutate(MAG = gsub("(.*_){2}(\\d+)_.+", "\\2", Genes))
+    copy_to(db, target, overwrite = TRUE)
+    target <- tbl(db, "target")
+    
   } else {
     target <- tbl(db, "data") %>% 
       filter(CC == CC_id)
@@ -58,7 +63,8 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
                 kegg_module = paste(unique(KEGG_Module), collapse = ", "),
                 desc = paste(unique(Description), collapse = ", "),
                 class = paste(unique(Class), collapse = ", "),
-                genus = paste(unique(Genus), collapse = ", ")) %>% 
+                genus = paste(unique(Genus), collapse = ", "),
+                mag = paste(unique(MAG), collapse = ", ")) %>% 
       inner_join(query_check)
   } else {
     CC_desc <- target %>% 

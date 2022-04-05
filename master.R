@@ -120,7 +120,7 @@ for(p in 1:length(kegg_p0)){
   
   # 2. Run model & save ----------------------------------------------------------
   run <- model_run(bluecloud.wd = bluecloud_dir,
-                   HYPERPARAMETERS = data.frame(LEARNING_RATE = c(1e-2, 1e-2, 1e-2, 1e-2),
+                   HYPERPARAMETERS = data.frame(LEARNING_RATE = c(5e-3, 5e-3, 5e-3, 5e-3),
                                                 N_Q = c(10, 10, 10, 10),
                                                 MEAN_LEAF = c(20, 30, 40, 50)),
                    verbose = TRUE)
@@ -203,7 +203,8 @@ for(p in 1:length(kegg_p0)){
   # Create table
   factor_raw <- list(query$CC_desc$kegg_module[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]],
                   query$CC_desc$kegg_ko[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]],
-                  query$CC_desc$class[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]])
+                  query$CC_desc$class[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]],
+                  query$CC_desc$mag[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]])
   factor_names <- lapply(factor_raw, function(x){x <- gsub(x, pattern = " ", replacement = "") %>% 
                                                        strsplit(split = ",") %>% 
                                                        unlist() %>% unique()
@@ -318,10 +319,10 @@ for(p in 1:length(kegg_p0)){
     plot(tmp_proj, main = paste(names(plot_list[j]), "// Nb of CC :", length(id)), col = colorRampPalette(col = rev(brewer.pal(10, "Spectral")))(100))
     
     # Taxonomic proportions
-    df <- matrix(0, nrow = length(id), ncol = length(factor_names[[3]]), dimnames = list(CC_desc_e$CC[id], factor_names[[3]]))
+    df <- matrix(0, nrow = length(id), ncol = length(factor_names[[4]]), dimnames = list(CC_desc_e$CC[id], factor_names[[4]]))
     for(k in 1:dim(df)[[1]]){
       for(l in 1:dim(df)[[2]]){
-        if(str_detect(factor_raw[[3]][id[k]], factor_names[[3]][l])==TRUE){df[k,l] <- df[k,l]+sum(proj_data[,id[k]], na.rm = TRUE)}
+        if(str_detect(factor_raw[[4]][id[k]], factor_names[[4]][l])==TRUE){df[k,l] <- df[k,l]+sum(proj_data[,id[k]], na.rm = TRUE)}
       }
     }
     df <- apply(df,2,sum)
