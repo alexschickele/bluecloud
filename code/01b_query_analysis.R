@@ -51,14 +51,17 @@ query_analysis <- function(bluecloud.wd = bluecloud_dir,
     
   # ---  3.  Initialization
   # Color palette for superposed plots
-  pal <- alpha(c("white","red","blue"), 0.3)
+  pal <- alpha(c("white","orange","blue","black"), c(0.3,0.3,0.3,1))
+  dens <- c(NA,NA,NA,20)
   
   # CC_desc tables with different filters
   list_all <- list(one = list(CC_desc = CC_desc),
                    two = list(CC_desc = CC_desc %>% 
                                 filter(min_exl >= 0.5)),
                    three = list(CC_desc = CC_desc %>% 
-                                  filter(min_exl >= 1)))
+                                  filter(min_exl >= 1)),
+                   four = list(CC_desc = CC_desc %>% 
+                                 filter(min_exl >= 0.5 & n_station >= 10)))
   
   # --- 4. Building distribution tables in list_all
   for(i in 1:length(list_all)){
@@ -97,37 +100,45 @@ query_analysis <- function(bluecloud.wd = bluecloud_dir,
   par(mfrow = c(2,2), mar = c(8,5,3,1))
   
   # Sum of reads plot
-  hist(log1p(list_all[[1]]$CC_desc$sum_reads), breaks = seq(0,10,0.5), col = pal[1], main = "sum of Reads (log1p)", xlab = "", xlim = c(0,7))
-  grid(col = "black")
+  list_all[[1]][["hist"]][["sum_reads"]] <- hist(log1p(list_all[[1]]$CC_desc$sum_reads), breaks = seq(0,10,0.5), col = pal[1], main = "sum of Reads (log1p)", xlab = "", xlim = c(0,7))
+  abline(h = seq(0,250,50), col = "black")
   for(i in 2:length(list_all)){
-    hist(log1p(list_all[[i]]$CC_desc$sum_reads), breaks = seq(0,10,0.5), col = pal[i], xlab = "",
-         add = TRUE)
+    list_all[[i]][["hist"]][["sum_reads"]] <- hist(log1p(list_all[[i]]$CC_desc$sum_reads), breaks = seq(0,10,0.5), col = pal[i], xlab = "",
+                                                   density = dens[i], border = NA, add = TRUE)
+    print("Sum of reads significancy test :")
+    print(chisq.test(list_all[[1]][["hist"]][["sum_reads"]]$counts,list_all[[i]][["hist"]][["sum_reads"]]$counts))
   }
   
   # Nb. of genes plot
-  hist(log1p(list_all[[1]]$CC_desc$n_genes), breaks = seq(0,10,0.5), col = pal[1], main = "Nb. of genes (log1p)", xlab = "", xlim = c(0,9))
-  grid(col = "black")
+  list_all[[1]][["hist"]][["n_genes"]] <- hist(log1p(list_all[[1]]$CC_desc$n_genes), breaks = seq(0,10,0.5), col = pal[1], main = "Nb. of genes (log1p)", xlab = "", xlim = c(0,9))
+  abline(h = seq(0,250,50), col = "black")
   for(i in 2:length(list_all)){
-    hist(log1p(list_all[[i]]$CC_desc$n_genes), breaks = seq(0,10,0.5), col = pal[i], xlab = "", xlim = c(0,9),
-         add = TRUE)
+    list_all[[i]][["hist"]][["n_genes"]] <- hist(log1p(list_all[[i]]$CC_desc$n_genes), breaks = seq(0,10,0.5), col = pal[i], xlab = "", xlim = c(0,9),
+                                                 density = dens[i], border = NA, add = TRUE)
+    print("Nb. of genes significancy test :")
+    print(chisq.test(list_all[[1]][["hist"]][["n_genes"]]$counts,list_all[[i]][["hist"]][["n_genes"]]$counts))
   }
   
   # Functional KO plot
   barplot(list_all[[1]]$df_list[[1]], las = 2, cex.names = 0.6, col = pal[1], main = "KO composition", ylab = "Frequency")
-  grid(col = "black")
+  abline(h = seq(0,100,20), col = "black")
   for(i in 2:length(list_all)){
-    barplot(list_all[[i]]$df_list[[1]], las = 2, cex.names = 0.6, col = pal[i],
+    barplot(list_all[[i]]$df_list[[1]], las = 2, cex.names = 0.6, col = pal[i], density = dens[i], border = NA,
             add = TRUE, axisnames = FALSE, axes = FALSE)
+    print("Functional KO significancy test :")
+    print(chisq.test(list_all[[1]]$df_list[[1]],list_all[[i]]$df_list[[1]]))
   }
   
-  # Functional KO plot
+  # Taxoonomic class plot
   barplot(list_all[[1]]$df_list[[2]], las = 2, cex.names = 0.6, col = pal[1], main = "Taxo. class composition", ylab = "Frequency")
-  grid(col = "black")
+  abline(h = seq(0,100,20), col = "black")
   for(i in 2:length(list_all)){
-    barplot(list_all[[i]]$df_list[[2]], las = 2, cex.names = 0.6, col = pal[i], 
+    barplot(list_all[[i]]$df_list[[2]], las = 2, cex.names = 0.6, col = pal[i], density = dens[i], border = NA,
             add = TRUE, axisnames = FALSE, axes = FALSE)
+    print("Taxonomic class significancy test :")
+    print(chisq.test(list_all[[1]]$df_list[[2]],list_all[[i]]$df_list[[2]]))
   }
-
+  
   # --- Close connection
   dbDisconnect(db)
 } # end function
