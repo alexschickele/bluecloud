@@ -8,7 +8,7 @@ data_dir <- paste0(bluecloud_dir, "/data")
 
 setwd(bluecloud_dir)
 source("./code/00a_config.R")
-source("./code/01_query_data.R")
+source("./code/01a_query_data.R")
 source("./code/02a_model_param.R")
 source("./code/02b_model_eval.R")
 source("./code/03a_bootstrap_predict.R")
@@ -16,28 +16,15 @@ source("./code/03a_bootstrap_predict.R")
 MAX_CLUSTER <- 20
 
 # =========================== DEFINE PARAMETERS ================================
-kegg_p0 = c("CCMlight", "Glu", "N", "C4ko","C4ko", "C4ko","Nglu","C4koRubisco")
-kegg_m0 = list(paste0("K",c("01601","01602",
+kegg_p0 = c("C4ko", "C4ko","CCMlight")
+kegg_m0 = list(paste0("K",c("01595","00051","00028","00029","00814","14272","01006","14454","14455","00024","00025","00026","01610")),
+               paste0("K",c("01595","00051","00028","00029","00814","14272","01006","14454","14455","00024","00025","00026","01610")),
+               paste0("K",c("01601","01602",
                             "01743","01674","18245","18246",
-                            "00028","00029","01610")),
-               paste0("K",c("00265","00264","00284")),
-               paste0("K",c("00367","10534","00372","00360","00366","17877", #NR + NiR
-                            "01948","00611","01755", # Urea in and out to citrate
-                            "01915","00265","00264","00284")), # GS I to III)
-               paste0("K",c("01595","00051","00028","00029","00814","14272","01006","14454","14455","00024","00025","00026","01610")),
-               paste0("K",c("01595","00051","00028","00029","00814","14272","01006","14454","14455","00024","00025","00026","01610")),
-               paste0("K",c("01595","00051","00028","00029","00814","14272","01006","14454","14455","00024","00025","00026","01610")),
-               paste0("K",c("00367","10534","00372","00360","00366","17877", #NR + NiR
-                            "01915","00265","00264","00284")), # GS I to III
-               paste0("K",c("01601","01602","01595","00051","00028","00029","00814","14272","01006","14454","14455","00024","00025","00026","01610")))
+                            "00028","00029","01610")))
 
-cluster_selec0 = list(c(50,1,1),
-                      c(50,1,0),
-                      c(50,1,0.5),
+cluster_selec0 = list(c(50,1,0.5),
                       c(50,1,1),
-                      c(50,3,1),
-                      c(50,1,0.5),
-                      c(50,1,0.5),
                       c(50,1,0.5))
 
 for(p in 1:length(kegg_p0)){
@@ -112,12 +99,20 @@ for(p in 1:length(kegg_p0)){
   ndim_ca <- which(res_ca$eig[,3]>80)[1]
   dist_ca <- dist(res_ca$col$coord[,1:ndim_ca]) %>% as.matrix()
   dist_ca <- dist_ca[,1:cluster_selec[1]]
+  
+  # Quantify dominance of CC
+  tmp <- apply(query$Y0,2,sum)
 
+  # Concatenate in dataframe
   nn_ca <- data.frame(CC = dimnames(dist_ca)[[1]],
                       pos_CC = 1:nrow(dist_ca),
                       nn_CC = apply(dist_ca, 1, function(x){x = names(which(x == min(x)))}),
-                      pos_nn_CC = apply(dist_ca, 1, function(x){x = which(x == min(x))}))
+                      pos_nn_CC = apply(dist_ca, 1, function(x){x = which(x == min(x))}),
+                      sum_CC = tmp,
+                      scale_CC = tmp/tmp[apply(dist_ca, 1, function(x){x = which(x == min(x))})])
+  
 
+  # Add it to query
   query[["nn_ca"]] <- nn_ca
   
   # 2. Run model & save ----------------------------------------------------------
@@ -201,8 +196,8 @@ for(p in 1:length(kegg_p0)){
   }
   dev.off()
   
-  # 6. Multivariate analysis on map clusters for interpretation ----------------
-  # Create table
+  # 6. Map relative abundance per enzymes, taxonomic and pattern composition ----------------
+  # --- Create factor table
   factor_raw <- list(query$CC_desc$kegg_module[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]],
                   query$CC_desc$kegg_ko[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]],
                   query$CC_desc$class[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]],
@@ -216,80 +211,8 @@ for(p in 1:length(kegg_p0)){
                                                 })
   df <- data.frame(group = as.factor(group), unknown_rate = query$CC_desc$unknown_rate[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]])
   factor_names[[2]] <- kegg_m[paste0("ko:",kegg_m)%in%factor_names[[2]]]
-  # Binary variables
-  for(j in 1:length(factor_raw)){
-    tmp <- matrix("FALSE", ncol = length(factor_names[[j]]), nrow = min(length(query$e$vr),cluster_selec[1]),
-                  dimnames = list(query$CC_desc$CC[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]], factor_names[[j]]))
-    for(k in 1:nrow(tmp)){
-      for(l in 1:ncol(tmp)){
-        if(str_detect(factor_raw[[j]][k], as.character(factor_names[[j]][l])) == TRUE){tmp[k,l] <- "TRUE"}
-      } # factor_names
-    } # CC names
-    df <- cbind(df, tmp)
-  }# j variable groups
-
-  res_mfa <- MFA(base = df, group = c(1,1,length(factor_names[[1]]),length(factor_names[[2]]),length(factor_names[[3]])), type = c("n", "s" , "n", "n", "n"), 
-                 name.group = c("group","unknown_rate","Module","KO","Class"), num.group.sup = c(1,2,3) ,graph = FALSE)
-
-  # Layout
-  pdf(paste0(bluecloud_dir, "/output/", output_dir, "/MFA.pdf"))
-  layout(mat = matrix(c(1,1,2,3,4,5), ncol = 3, nrow = 2, byrow = TRUE), widths = c(2,2,1), heights = c(2,1))
-  # Plot of individuals
-  par(mar = c(4,4,2,1))
-  dataEllipse(res_mfa$ind$coord[,1], res_mfa$ind$coord[,2], levels = 0.8, groups = as.factor(group),
-              pch = 20, lwd = 1, main = "Individuals", plot.points = TRUE, robust = TRUE,
-              xlab = paste0("Dimension 1 (", round(res_mfa$eig[1,2],2),"%)"), 
-              ylab = paste0("Dimension 2 (",round(res_mfa$eig[2,2],2) ,"%)"),
-              col = brewer.pal(tree_cut, "Set2"))
-  points(res_mfa$ind$coord[,1], res_mfa$ind$coord[,2], pch = 20, 
-       col = brewer.pal(tree_cut, "Set2")[group])
-  text(res_mfa$ind$coord[,1], res_mfa$ind$coord[,2], labels = names(group), 
-       col = brewer.pal(tree_cut, "Set2")[group], pos = 3, offset = 0.2, cex = 0.5)
-  points(res_mfa$quali.var$coord[seq(2,nrow(res_mfa$quali.var$coord),2),1], res_mfa$quali.var$coord[seq(2,nrow(res_mfa$quali.var$coord),2),2], pch = 20, 
-         col = "black")
-  text(res_mfa$quali.var$coord[seq(2,nrow(res_mfa$quali.var$coord),2),1], res_mfa$quali.var$coord[seq(2,nrow(res_mfa$quali.var$coord),2),2], 
-       labels = rownames(res_mfa$quali.var$coord)[seq(2,nrow(res_mfa$quali.var$coord),2)], 
-       col = "black", pos = 3, offset = 0.2, cex = 0.5)
-  grid()
-  abline(h = 0, v = 0, lty = "longdash")
-
-  # Legend
-  par(mar = c(0,0,0,0))
-  plot.new()
-  legend(0, 0.7, legend = paste("Group", seq(1:tree_cut)), fill = brewer.pal(tree_cut, "Set2"), )
   
-  # Dimension 1 : contribution
-  par(mar = c(6,4,2,2))
-  barplot(sort(res_mfa$quali.var$contrib[,1], decreasing = TRUE)[1:20], las = 2,
-          cex.names = 0.5, main  = "Quali.var contribution to dim. 1", ylab = "(%)",
-          col = rep(brewer.pal(3, "Set2")[1:2], res_mfa$call$group.mod[-c(1,2,3)])[order(res_mfa$quali.var$contrib[,1], decreasing = TRUE)[1:20]])
-  abline(h = mean(res_mfa$quali.var$contrib[,1]), lty = "longdash")
-  
-  # Dimension 2 : contribution
-  barplot(sort(res_mfa$quali.var$contrib[,2], decreasing = TRUE)[1:20], las = 2,
-          cex.names = 0.5, main  = "Quali.var contribution to dim. 2", ylab = "(%)",
-          col = rep(brewer.pal(3, "Set2")[1:2], res_mfa$call$group.mod[-c(1,2,3)])[order(res_mfa$quali.var$contrib[,2], decreasing = TRUE)[1:20]])
-  abline(h = mean(res_mfa$quali.var$contrib[,2]), lty = "longdash")
-  
-  # Legend
-  par(mar = c(0,0,0,0))
-  plot.new()
-  legend(0, 0.7, legend = res_mfa$call$name.group[-c(1,2,3)], fill = brewer.pal(3, "Set2")[1:2])
-  dev.off()
-  
-  # 7. Specific correlations to test -------------------------------------------
-  # Defining the different maps to plot
-  plot_list <- list(RUBISCO = "01601|01602",
-                    PEPCK = "01610",
-                    ME_NADP = "00029",
-                    ME_NAD = "00028")
-
-  plot_list <- list(NR = "00367|00372|00360|10534",
-                    NiR  = "00366|17877",
-                    Glu1 = "264",
-                    Glu2 = "265",
-                    Glu3 = "284")
-  
+  # --- Defining the different maps to plot
   plot_list <- list(PPC = "1595",
                     GOT = "14454|14455",
                     PEPCK = "01610",
@@ -299,70 +222,114 @@ for(p in 1:length(kegg_p0)){
                     ME_NAD = "00028",
                     GPT = "00814|14272",
                     PPDK = "1006")
-  
-  plot_list <- list(RUBISCO = "1601|1602",
-                    C4 = "01595|00051|00028|00029|00814|14272|01006|14454|14455|00024|00025|00026|01610",
-                    PPC = "1595",
-                    GOT = "14454|14455",
-                    PEPCK = "01610",
-                    MDH = "00024|00025|00026",
-                    MD = "00051",
-                    ME_NADP = "00029",
-                    ME_NAD = "00028",
-                    GPT = "00814|14272",
-                    PPDK = "1006")
 
+  # --- Initializing parameters
   CC_desc_e <- query$CC_desc[query$e$vr,] %>% inner_join(query$nn_ca)
   r0 <- stack(paste0(data.wd,"/features"))[[1]]
   
-  proj_data <- y_hat_m_rescaled
+  proj_data <- proj$y_hat_m
   proj_out <- NULL
   taxo_out <- NULL
+  
+  pal <- colorRampPalette(col = c("#440154","#472c7a","#3b518b","#2c718e","#21908d","#27ad81","#5cc863","#aadc32","#fde725"))(100)
+  pal <- colorRampPalette(col = rev(brewer.pal(10,"Spectral")))(100)
+  
+  # --- Building rasters
+  for(j in 1:length(plot_list)){
+    # Extract nearest neighbor data
+    id <- CC_desc_e$pos_nn_CC[which(str_detect(CC_desc_e$kegg_ko, plot_list[[j]])==TRUE)]
+    scale_CC <- query$nn_ca$scale_CC[which(str_detect(CC_desc_e$kegg_ko, plot_list[[j]])==TRUE)]
+    
+    # Extract spatial data
+    tmp <- apply(proj_data[,id],1, function(x){x = x*scale_CC})
+    tmp <- apply(tmp, 2, sum) # matrix transposed for some reasons...
+    
+    if(j==1){
+      r_proj <- setValues(r0, tmp)
+    } else {
+      r_proj <- stack(r_proj, setValues(r0, tmp))
+    }
+    names(r_proj[[j]]) <- paste0(names(plot_list[j]), "__Nb.CC:_", length(id))
+    
+    #  save for later
+    proj_out <- cbind(proj_out, tmp)
+  } # j loop
+  
+  # --- Plotting rasters
+  pdf(paste0(bluecloud_dir, "/output/", output_dir, "/Functional_map.pdf"))
+  par(mfrow = c(3,3), mar = c(7,2,3,2))
 
+  for(j in 1:length(plot_list)){
+    max_breaks <- ceiling(max(getValues(r_proj[[j]]), na.rm = TRUE)/max(getValues(r_proj), na.rm = TRUE)*100)
+    min_breaks <- floor(min(getValues(r_proj[[j]]), na.rm = TRUE)/max(getValues(r_proj), na.rm = TRUE)*100)
+    plot(r_proj[[j]], col = pal[min_breaks:max_breaks], main = gsub("_"," ", names(r_proj[[j]])))
+  }
+  dev.off()
+  
+  # --- Plotting supplementary information
+  pdf(paste0(bluecloud_dir, "/output/", output_dir, "/Functional_composition.pdf"))
   par(mfrow = c(5,2))
+  
   for(j in 1:length(plot_list)){
     # Extract spatial data
     id <- CC_desc_e$pos_nn_CC[which(str_detect(CC_desc_e$kegg_ko, plot_list[[j]])==TRUE)]
-    print(paste("---", names(plot_list[j]), "// Nb of CC :", length(id), "---"))
     
-    tmp <- apply(proj_data[,id], 1, mean)
-    tmp_proj <- setValues(r0, tmp)
-    
-    par(mar = c(2,1,2,2))
-    plot(tmp_proj, main = paste(names(plot_list[j]), "// Nb of CC :", length(id)), col = colorRampPalette(col = rev(brewer.pal(10, "Spectral")))(100))
+    # Pattern proportions
+    par(mar = c(2,2,3,2))
+    hist(id, breaks = 50, col = "gray20", axes = F, xlim = c(0,51), 
+         main = paste(names(plot_list)[j],": Pattern composition"), xlab = "Pattern id")
+    axis(side = 1, at = seq(1.5,50.5), labels = seq(1,50), las = 2, cex = 0.5)
+    axis(side = 2, at = seq(0,10), labels = seq(0,10))
+    abline(h = seq(1,10), lty = "dotted")
+    box()
     
     # Taxonomic proportions
-    df <- matrix(0, nrow = length(id), ncol = length(factor_names[[4]]), dimnames = list(CC_desc_e$CC[id], factor_names[[4]]))
+    df <- matrix(0, nrow = length(id), ncol = length(factor_names[[3]]), dimnames = list(CC_desc_e$CC[id], factor_names[[3]]))
     for(k in 1:dim(df)[[1]]){
       for(l in 1:dim(df)[[2]]){
-        if(str_detect(factor_raw[[4]][id[k]], factor_names[[4]][l])==TRUE){df[k,l] <- df[k,l]+sum(proj_data[,id[k]], na.rm = TRUE)}
+        if(str_detect(factor_raw[[3]][id[k]], factor_names[[3]][l])==TRUE){df[k,l] <- df[k,l]+sum(proj_data[,id[k]], na.rm = TRUE)}
       }
     }
     df <- apply(df,2,sum)
     df <- df/sum(df)
     
-    par(mar=c(5,2,1,0))
-    barplot(df, las = 2, cex.names = 0.6, col = "gray20", ylim = c(0,1))
+    par(mar=c(5,2,3,0))
+    barplot(df, las = 2, cex.names = 0.6, col = "gray20", ylim = c(0,1), 
+            main = paste(names(plot_list)[j],": Taxonomic composition"))
     abline(h = c(0.2,0.4,0.6,0.8), lty = "dotted")
     box()
     
-    #  save for later
-    proj_out <- cbind(proj_out, tmp)
+    # Save for later
     taxo_out <- cbind(taxo_out, df)
-  }
+  } # for j
+  dev.off()
   
-  # naming saved outputs
+  # --- naming saved outputs
   colnames(proj_out) <- colnames(taxo_out) <- names(plot_list)
   
-  # Supplementary plots
+  # --- Supplementary tests
   library(vegan)
   map_similarity <- as.dist(cor(proj_out, use = "pairwise.complete.obs"))
   taxo_similarity <- 1-vegdist(t(taxo_out), "bray")
   mantel(taxo_similarity, map_similarity, method = "pearson", permutations = 1e+5)
   print(map_similarity)
 
-  
-  
+  # --- Correlation plots
+  library(corrplot)
+  par(mfrow = c(1,2), mar = c(2,5,5,3))
+  corrplot(as.matrix(map_similarity), order = 'FPC', type = 'upper', diag = FALSE,
+           title = "Relative abundance similarity", tl.cex = 0.6, tl.col =  "black")
+  corrplot(as.matrix(taxo_similarity), order = 'FPC', type = 'upper', diag = FALSE,
+           title = "Taxonomic composition similarity", tl.cex = 0.6, tl.col =  "black")
 
 
+  testRes = cor.mtest(as.matrix(map_similarity), conf.level = 0.95)
+  corrplot(as.matrix(map_similarity), p.mat = testRes$p, type = 'upper', diag = FALSE,
+           title = "Relative abundance similarity", tl.cex = 0.6, tl.col =  "black", order = 'FPC')
+  
+  testRes = cor.mtest(as.matrix(taxo_similarity), conf.level = 0.95)
+  corrplot(as.matrix(taxo_similarity), p.mat = testRes$p, type = 'upper', diag = FALSE,
+           title = "Taxonomic composition similarity", tl.cex = 0.6, tl.col =  "black", order = 'FPC')
 # --- END
+  
+  
