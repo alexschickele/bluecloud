@@ -317,12 +317,6 @@ for(p in 1:length(kegg_p0)){
   # --- Correlation plots
   library(corrplot)
   par(mfrow = c(1,2), mar = c(2,5,5,3))
-  corrplot(as.matrix(map_similarity), order = 'FPC', type = 'upper', diag = FALSE,
-           title = "Relative abundance similarity", tl.cex = 0.6, tl.col =  "black")
-  corrplot(as.matrix(taxo_similarity), order = 'FPC', type = 'upper', diag = FALSE,
-           title = "Taxonomic composition similarity", tl.cex = 0.6, tl.col =  "black")
-
-
   testRes = cor.mtest(as.matrix(map_similarity), conf.level = 0.95)
   corrplot(as.matrix(map_similarity), p.mat = testRes$p, type = 'upper', diag = FALSE,
            title = "Relative abundance similarity", tl.cex = 0.6, tl.col =  "black", order = 'FPC')
@@ -330,6 +324,91 @@ for(p in 1:length(kegg_p0)){
   testRes = cor.mtest(as.matrix(taxo_similarity), conf.level = 0.95)
   corrplot(as.matrix(taxo_similarity), p.mat = testRes$p, type = 'upper', diag = FALSE,
            title = "Taxonomic composition similarity", tl.cex = 0.6, tl.col =  "black", order = 'FPC')
+  
+  # --- Map latitudinal profiles per function
+  par(mfrow = c(3,3), mar = c(2,3,3,2))
+  map_profile <- NULL
+  for(j in 1:length(plot_list)){
+    tmp <- as.matrix(r_proj[[j]]) %>% 
+      apply(1, function(x) (x = mean(x, na.rm = TRUE)))
+    plot(tmp, seq(89,-90), horiz = TRUE, border = NA, col = "black", type  = 'l', lwd = 2,
+         ylim = c(-90, 90), xlim = c(0,0.3),
+         ylab = "Latitudinal average", xlab = "Relative abundancy", main = names(plot_list)[j])
+    grid()
+    map_profile <- cbind(map_profile, tmp)
+    colnames(map_profile)[j] <- names(plot_list)[j]
+  }
+  
+  # --- Map latitudinal profiles per taxonomic class
+  par(mfrow = c(3,3), mar = c(2,3,3,2))
+  taxo_profile <- NULL
+  for(j in 1:length(factor_names[[3]])){
+    # Extract taxonomic data
+    id <- CC_desc_e$pos_nn_CC[which(str_detect(CC_desc_e$class, factor_names[[3]][[j]])==TRUE)]
+    scale_CC <- query$nn_ca$scale_CC[which(str_detect(CC_desc_e$class, factor_names[[3]][[j]])==TRUE)]
+    
+    # Extract spatial data
+    tmp <- apply(proj_data[,id],1, function(x){x = x*scale_CC})
+    tmp <- apply(tmp, 2, sum) # matrix transposed for some reasons...
+    tmp <- setValues(r0, tmp) %>% 
+      as.matrix() %>% 
+      apply(1, function(x) (x = mean(x, na.rm = TRUE)))
+    
+    # Plotting
+    if(max(tmp > 0.05, na.rm = TRUE)){
+      plot(tmp, seq(89,-90), horiz = TRUE, border = NA, col = "black", type  = 'l', lwd = 2,
+           ylim = c(-90, 90), xlim = c(0,0.5),
+           ylab = "Latitudinal average", xlab = "Relative abundancy", main = factor_names[[3]][j])
+      grid()
+      taxo_profile <- cbind(taxo_profile, tmp)
+      colnames(taxo_profile)[ncol(taxo_profile)] <- factor_names[[3]][j]
+    }
+  }
+  
+  # --- Profile correlations
+  par(mfrow = c(2,2))
+  profile_similarity <- cor(map_profile[,c(2,5,3,8,9,1,4,6,7)], taxo_profile[,c(1,4,8,2,3,5,6,7)], use = 'pairwise.complete.obs')
+  testRes = cor.mtest(as.matrix(profile_similarity), conf.level = 0.95)
+  corrplot(as.matrix(profile_similarity), p.mat = testRes$p, diag = FALSE, is.corr=FALSE,
+           title = "Taxonomic composition similarity", tl.cex = 0.6, tl.col =  "black")
+  
+  # --- Taxonomic maps
+  taxo_map <- NULL
+  for(j in 1:length(factor_names[[3]])){
+    # Extract taxonomic data
+    id <- CC_desc_e$pos_nn_CC[which(str_detect(CC_desc_e$class, factor_names[[3]][[j]])==TRUE)]
+    scale_CC <- query$nn_ca$scale_CC[which(str_detect(CC_desc_e$class, factor_names[[3]][[j]])==TRUE)]
+    
+    # Extract spatial data
+    tmp <- apply(proj_data[,id],1, function(x){x = x*scale_CC})
+    tmp <- apply(tmp, 2, sum) # matrix transposed for some reasons...
+    
+    #  save for later
+    taxo_map <- cbind(taxo_map, tmp)
+  }
+  colnames(taxo_map) <- factor_names[[3]]
+  
+  # --- Build taxonomic composition map and normalize functional map by it ### TEST
+  
+  proj_norm0 <- NULL
+  par(mfrow = c(3,3))
+  for(j in 1:length(plot_list)){
+    tmp <- t(taxo_map)*taxo_out[,j]
+    tmp <- apply(as.matrix(tmp), 2, function(x) (x = sum(x, na.rm = TRUE)))
+    
+    proj_norm <- proj_out[,j]/tmp
+    r_proj_norm <- setValues(r0, proj_norm)
+    plot(r_proj_norm, main = paste("Normalized", names(plot_list[j]), "distribution"), col = pal)
+    
+    # Save for later
+    proj_norm0 <- cbind(proj_norm0, proj_norm)
+  }
+
+  
+  
+  
+  
+  
 # --- END
   
   
