@@ -195,6 +195,10 @@ factor_raw <- list(query$CC_desc$kegg_module[query$e$vr[1:min(length(query$e$vr)
                 query$CC_desc$kegg_ko[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]],
                 query$CC_desc$class[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]],
                 query$CC_desc$mag[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]])
+factor_raw <- list(query$CC_desc$kegg_module[query$e$vr],
+                   query$CC_desc$kegg_ko[query$e$vr],
+                   query$CC_desc$class[query$e$vr],
+                   query$CC_desc$mag[query$e$vr])
 factor_names <- lapply(factor_raw, function(x){x <- gsub(x, pattern = " ", replacement = "") %>% 
                                                      strsplit(split = ",") %>% 
                                                      unlist() %>% unique()
@@ -266,8 +270,8 @@ for(j in 1:length(factor_names[[3]])){
   scale_CC <- query$nn_ca$scale_CC[which(str_detect(CC_desc_e$class, factor_names[[3]][[j]])==TRUE)]
   
   # Building taxonomic data
-  tmp <- apply(proj_data[,id],1, function(x){x = x*scale_CC})
-  tmp <- apply(tmp, 2, sum) # matrix transposed for some reasons...
+  tmp <- apply(as.matrix(proj_data[,id]),1, function(x){x = x*scale_CC})
+  tmp <- apply(as.matrix(tmp), 2, sum) # matrix transposed for some reasons...
   taxo_data <- cbind(taxo_data, tmp)
   
   # Building taxonomic raster
@@ -300,20 +304,57 @@ for(j in 1:length(plot_list)){
 } # for j
 colnames(taxo_comp) <- names(plot_list)
 
+# ============== BUILDING MAG DATA, PROJ & PROFILE =======================
+# 1. Initialize parameters -----------------------------------------------------
+mag_data <- NULL
+mag_comp <- NULL
+
+# 2. Building data, rasters and profiles ---------------------------------------
+for(j in 1:length(factor_names[[4]])){
+  # Extract taxonomic data
+  id <- CC_desc_e$pos_nn_CC[which(str_detect(CC_desc_e$mag, factor_names[[4]][[j]])==TRUE)]
+  scale_CC <- query$nn_ca$scale_CC[which(str_detect(CC_desc_e$mag, factor_names[[4]][[j]])==TRUE)]
+  
+  # Building taxonomic data
+  tmp <- apply(as.matrix(proj_data[,id]),1, function(x){x = x*scale_CC})
+  tmp <- apply(as.matrix(tmp), 2, sum) # matrix transposed for some reasons...
+  mag_data <- cbind(mag_data, tmp)
+}
+colnames(mag_data) <- factor_names[[4]]
+
+# 2. Building mag composition per func_r ---------------------------------
+for(j in 1:length(plot_list)){
+  # Extract functional data
+  id <- CC_desc_e$pos_nn_CC[which(str_detect(CC_desc_e$kegg_ko, plot_list[[j]])==TRUE)]
+  
+  # Taxonomic proportions
+  df <- matrix(0, nrow = length(id), ncol = length(factor_names[[4]]), dimnames = list(CC_desc_e$CC[id], factor_names[[4]]))
+  for(k in 1:dim(df)[[1]]){
+    for(l in 1:dim(df)[[2]]){
+      if(str_detect(factor_raw[[4]][id[k]], factor_names[[4]][l])==TRUE){df[k,l] <- df[k,l]+sum(proj_data[,id[k]], na.rm = TRUE)}
+    }
+  }
+  df <- apply(df,2,sum)
+  df <- df/sum(df)
+  mag_comp <- cbind(mag_comp, df)
+} # for j
+colnames(mag_comp) <- names(plot_list)
+
+
 # =================== BUILDING NORMALIZED FUNCTIONAL DATA & PROJ ===============
 #' We normalize the previous functional data by the distribution of their 
-#' taxonomic composition
+#' taxonomic or mag composition
 # 1. Initialize parameters -----------------------------------------------------
 norm_data <- NULL
 
 # 2. Build normalized functional data and rasters ------------------------------
 for(j in 1:length(plot_list)){
   # Building normalized taxonomic data from taxo_comp
-  tmp <- t(taxo_data)*taxo_comp[,j]
+  tmp <- t(mag_data)*mag_comp[,j]
   tmp <- apply(as.matrix(tmp), 2, function(x) (x = sum(x, na.rm = TRUE)))
   
   # Building normalized functional data
-  tmp <- proj_data[,j]/tmp
+  tmp <- func_data[,j]/tmp
   norm_data <- cbind(norm_data, tmp)
   
   # Building normalized functional raster
@@ -401,6 +442,13 @@ testRes = cor.mtest(as.matrix(profile_similarity), conf.level = 0.95)
 corrplot(as.matrix(profile_similarity), p.mat = testRes$p, diag = FALSE, is.corr=FALSE,
          title = "Taxonomic composition similarity", tl.cex = 0.6, tl.col =  "black")
 
+# --- Normalized functional maps similarity
+norm_similarity <- as.dist(cor(norm_data, use = "pairwise.complete.obs"))
+
+par(mfrow = c(2,2), mar = c(2,5,5,3))
+testRes = cor.mtest(as.matrix(norm_similarity), conf.level = 0.95)
+corrplot(as.matrix(norm_similarity), p.mat = testRes$p, type = 'upper', diag = FALSE,
+         title = "Norm. Relative abundance similarity", tl.cex = 0.6, tl.col =  "black", order = 'FPC')
 
 
 
