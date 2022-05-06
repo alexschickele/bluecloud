@@ -43,4 +43,4 @@ NBOOST <- 5000 # maximum number of boosting rounds
 N_FOLD <- 5 # number of k-fold cross validation runs
 MAX_CLUSTER <- 20 # maximum number of clusters for parallel computing
 
-NBOOTSTRAP <- 20 # number of bootstrap rounds for script 05b
+NBOOTSTRAP <- 100 # number of bootstrap rounds for script 05b

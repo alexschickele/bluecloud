@@ -20,16 +20,10 @@ source("./code/03a_bootstrap_predict.R")
 MAX_CLUSTER <- 20
 
 # =========================== DEFINE PARAMETERS ================================
-kegg_p0 = c("C4ko", "C4ko","CCMlight")
-kegg_m0 = list(paste0("K",c("01595","00051","00028","00029","00814","14272","01006","14454","14455","00024","00025","00026","01610")),
-               paste0("K",c("01595","00051","00028","00029","00814","14272","01006","14454","14455","00024","00025","00026","01610")),
-               paste0("K",c("01601","01602",
-                            "01743","01674","18245","18246",
-                            "00028","00029","01610")))
+kegg_p0 = c("C4")
+kegg_m0 = list(paste0("K",c("01595","00051","00028","00029","00814","14272","01006","14454","14455","00024","00025","00026","01610")))
 
-cluster_selec0 = list(c(50,1,0.5),
-                      c(50,1,1),
-                      c(50,1,0.5))
+cluster_selec0 = list(c(50,1,1))
 
 for(p in 1:length(kegg_p0)){
   kegg_p = kegg_p0[p]
@@ -191,14 +185,15 @@ dev.off()
 # ============================ INITIALIZE PARAMETERS ===========================
 # --- Create factor table
 # Done on the escoufier selected points
-factor_raw <- list(query$CC_desc$kegg_module[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]],
-                query$CC_desc$kegg_ko[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]],
-                query$CC_desc$class[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]],
-                query$CC_desc$mag[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]])
+# factor_raw <- list(query$CC_desc$kegg_module[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]],
+#                 query$CC_desc$kegg_ko[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]],
+#                 query$CC_desc$class[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]],
+#                 query$CC_desc$mag[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]])
 factor_raw <- list(query$CC_desc$kegg_module[query$e$vr],
                    query$CC_desc$kegg_ko[query$e$vr],
                    query$CC_desc$class[query$e$vr],
-                   query$CC_desc$mag[query$e$vr])
+                   query$CC_desc$mag[query$e$vr],
+                   query$CC_desc$phylum[query$e$vr])
 factor_names <- lapply(factor_raw, function(x){x <- gsub(x, pattern = " ", replacement = "") %>% 
                                                      strsplit(split = ",") %>% 
                                                      unlist() %>% unique()
@@ -212,21 +207,21 @@ factor_names[[2]] <- kegg_m[paste0("ko:",kegg_m)%in%factor_names[[2]]]
 plot_list <- list(PPC = "1595",
                   GOT = "14454|14455",
                   PEPCK = "01610",
-                  MDH = "00024|00025|00026",
-                  MD = "00051",
-                  ME_NADP = "00029",
-                  ME_NAD = "00028",
-                  GPT = "00814|14272",
+                  MDH_NAD = "00024|00025|00026",
+                  MDH_NADP = "00051",
+                  MDC_NADP = "00029",
+                  MDC_NAD = "00028",
+                  GPT_GGAT = "00814|14272",
                   PPDK = "1006")
 
 # --- Supplementary parameters parameters
 CC_desc_e <- query$CC_desc[query$e$vr,] %>% inner_join(query$nn_ca)
 r0 <- stack(paste0(data.wd,"/features"))[[1]]
+scaled <- TRUE
 
-proj_data <- proj$y_hat_m
+proj_data <- apply(proj$y_hat_m, 2, function(x){x = x/sum(x, na.rm = TRUE)}) 
 
 # --- Colors
-pal <- colorRampPalette(col = c("#440154","#472c7a","#3b518b","#2c718e","#21908d","#27ad81","#5cc863","#aadc32","#fde725"))(100)
 pal <- colorRampPalette(col = rev(brewer.pal(10,"Spectral")))(100)
 
 # =================== BUILDING FUNCTIONAL DATA, PROJ & PROFILES ================
@@ -238,7 +233,7 @@ func_profile <- NULL
 for(j in 1:length(plot_list)){
   # Extract nearest neighbor data
   id <- CC_desc_e$pos_nn_CC[which(str_detect(CC_desc_e$kegg_ko, plot_list[[j]])==TRUE)]
-  scale_CC <- query$nn_ca$scale_CC[which(str_detect(CC_desc_e$kegg_ko, plot_list[[j]])==TRUE)]
+  if(scaled == TRUE){scale_CC <- query$nn_ca$sum_CC[which(str_detect(CC_desc_e$kegg_ko, plot_list[[j]])==TRUE)]} else {scale_CC <- 1}
   
   # Building functional data
   tmp <- apply(proj_data[,id],1, function(x){x = x*scale_CC})
@@ -267,11 +262,16 @@ taxo_comp <- NULL
 for(j in 1:length(factor_names[[3]])){
   # Extract taxonomic data
   id <- CC_desc_e$pos_nn_CC[which(str_detect(CC_desc_e$class, factor_names[[3]][[j]])==TRUE)]
-  scale_CC <- query$nn_ca$scale_CC[which(str_detect(CC_desc_e$class, factor_names[[3]][[j]])==TRUE)]
+  if(scaled == TRUE){scale_CC <- query$nn_ca$sum_CC[which(str_detect(CC_desc_e$class, factor_names[[3]][[j]])==TRUE)]} else {scale_CC <- 1}
   
   # Building taxonomic data
-  tmp <- apply(as.matrix(proj_data[,id]),1, function(x){x = x*scale_CC})
-  tmp <- apply(as.matrix(tmp), 2, sum) # matrix transposed for some reasons...
+  if(length(id) > 1){
+    tmp <- apply(as.matrix(proj_data[,id]),1, function(x){x = x*scale_CC})
+    tmp <- apply(as.matrix(tmp), 2, sum) # matrix transposed for some reasons...
+  } else {
+    tmp <- proj_data[,id]*scale_CC
+  } # if length ID > 1
+
   taxo_data <- cbind(taxo_data, tmp)
   
   # Building taxonomic raster
@@ -311,16 +311,24 @@ mag_comp <- NULL
 
 # 2. Building data, rasters and profiles ---------------------------------------
 for(j in 1:length(factor_names[[4]])){
-  # Extract taxonomic data
+  # Extract mag data
   id <- CC_desc_e$pos_nn_CC[which(str_detect(CC_desc_e$mag, factor_names[[4]][[j]])==TRUE)]
-  scale_CC <- query$nn_ca$scale_CC[which(str_detect(CC_desc_e$mag, factor_names[[4]][[j]])==TRUE)]
+  if(scaled == TRUE){scale_CC <- query$nn_ca$sum_CC[which(str_detect(CC_desc_e$mag, factor_names[[4]][[j]])==TRUE)]} else {scale_CC <- 1}
   
-  # Building taxonomic data
-  tmp <- apply(as.matrix(proj_data[,id]),1, function(x){x = x*scale_CC})
-  tmp <- apply(as.matrix(tmp), 2, sum) # matrix transposed for some reasons...
+  # Building mag data
+  if(length(id)> 1){
+    tmp <- apply(as.matrix(proj_data[,id]),1, function(x){x = x*scale_CC})
+    tmp <- apply(as.matrix(tmp), 2, sum) # matrix transposed for some reasons...
+  } else {
+    tmp <- proj_data[,id]*scale_CC
+  } # if length ID > 1
+  
   mag_data <- cbind(mag_data, tmp)
 }
 colnames(mag_data) <- factor_names[[4]]
+
+# Sum lines at 1, i.e. back to relative
+# mag_data <- apply(mag_data, 2, function(x) (x = x/sum(x, na.rm = TRUE)))
 
 # 2. Building mag composition per func_r ---------------------------------
 for(j in 1:length(plot_list)){
@@ -350,6 +358,7 @@ norm_data <- NULL
 # 2. Build normalized functional data and rasters ------------------------------
 for(j in 1:length(plot_list)){
   # Building normalized taxonomic data from taxo_comp
+  # tmp <- t(taxo_data)*taxo_comp[,j]
   tmp <- t(mag_data)*mag_comp[,j]
   tmp <- apply(as.matrix(tmp), 2, function(x) (x = sum(x, na.rm = TRUE)))
   
@@ -367,19 +376,23 @@ names(norm_r) <- names(plot_list)
 # =========================== GRAPHICAL OUTPUTS ================================
 # 1. Functional maps -----------------------------------------------------------
 r <- func_r
-pdf(paste0(bluecloud_dir, "/output/", output_dir, "/Functional_map.pdf"))
-par(mfrow = c(3,3), mar = c(7,2,3,2))
+if(scaled == TRUE){pdf(paste0(bluecloud_dir,"/output/", output_dir, "/Functional_map_scaled.pdf"))
+}else{pdf(paste0(bluecloud_dir,"/output/", output_dir, "/Functional_map.pdf"))}
 
-for(j in 1:length(plot_list)){
-  max_breaks <- ceiling(max(getValues(r[[j]]), na.rm = TRUE)/max(getValues(r), na.rm = TRUE)*100)
-  min_breaks <- floor(min(getValues(r[[j]]), na.rm = TRUE)/max(getValues(r), na.rm = TRUE)*100)
-  plot(r[[j]], col = pal[min_breaks:max_breaks], main = gsub("_"," ", names(r[[j]])))
-}
+par(mfrow = c(3,3), mar = c(7,2,3,2))
+plot(func_r, col = pal)
+# for(j in 1:length(plot_list)){
+#   max_breaks <- ceiling(max(getValues(r[[j]]), na.rm = TRUE)/max(getValues(r), na.rm = TRUE)*100)
+#   min_breaks <- floor(min(getValues(r[[j]]), na.rm = TRUE)/max(getValues(r), na.rm = TRUE)*100)
+#   plot(r[[j]], col = pal[min_breaks:max_breaks], main = gsub("_"," ", names(r[[j]])))
+# }
 dev.off()
 
 # 2. Supplementary barplots ----------------------------------------------------
 # --- Taxonomic composition
-pdf(paste0(bluecloud_dir,"/output/", output_dir, "/Functional_composition.pdf"))
+if(scaled == TRUE){pdf(paste0(bluecloud_dir,"/output/", output_dir, "/Functional_composition_scaled.pdf"))
+  }else{pdf(paste0(bluecloud_dir,"/output/", output_dir, "/Functional_composition.pdf"))}
+
 par(mfrow = c(3,3), mar=c(5,3,3,2))
 
 for(j in 1:length(plot_list)){
@@ -391,7 +404,8 @@ for(j in 1:length(plot_list)){
 dev.off()
 
 # 3. Longitudinal profiles -----------------------------------------------------
-pdf(paste0(bluecloud_dir,"/output/", output_dir, "/Latitudinal_profiles.pdf"))
+if(scaled == TRUE){pdf(paste0(bluecloud_dir,"/output/", output_dir, "/Latitudinal_profiles_scaled.pdf"))
+}else{pdf(paste0(bluecloud_dir,"/output/", output_dir, "/Latitudinal_profiles.pdf"))}
 
 # --- Functional profiles
 par(mfrow = c(3,3), mar=c(5,4,3,2))
@@ -419,39 +433,32 @@ dev.off()
 library(vegan)
 library(corrplot)
 
+if(scaled == TRUE){pdf(paste0(bluecloud_dir,"/output/", output_dir, "/Correlations_scaled.pdf"))
+}else{pdf(paste0(bluecloud_dir,"/output/", output_dir, "/Correlations.pdf"))}
+
+par(mfrow = c(2,2), mar = c(2,5,5,3))
 # --- Functional and taxonomic similarity test & correlation
 func_similarity <- as.dist(cor(func_data, use = "pairwise.complete.obs"))
 taxo_similarity <- 1-vegdist(t(taxo_comp), "bray")
 mantel(taxo_similarity, func_similarity, method = "pearson", permutations = 1e+5)
 
-par(mfrow = c(2,2), mar = c(2,5,5,3))
-testRes = cor.mtest(as.matrix(func_similarity), conf.level = 0.95)
-corrplot(as.matrix(func_similarity), p.mat = testRes$p, type = 'upper', diag = FALSE,
-         title = "Relative abundance similarity", tl.cex = 0.6, tl.col =  "black", order = 'FPC')
+corrplot(as.matrix(func_similarity), type = 'lower', diag = FALSE,
+          tl.cex = 1, tl.col =  "black", order = 'FPC')
 
-testRes = cor.mtest(as.matrix(taxo_similarity), conf.level = 0.95)
-corrplot(as.matrix(taxo_similarity), p.mat = testRes$p, type = 'upper', diag = FALSE,
-         title = "Taxonomic composition similarity", tl.cex = 0.6, tl.col =  "black", order = 'FPC')
+# --- Functional vs Taxonomic correlations
+cor_mat <- cor(func_data, taxo_data, use = 'pairwise.complete.obs')
+func_hclust <- hclust(dist(cor_mat), method = 'ward.D2')
+taxo_hclust <- hclust(dist(t(cor_mat)), method = 'ward.D2')
+cor_mat <- cor_mat[func_hclust$order, taxo_hclust$order]
 
-# --- Latitudinal profiles : functional x taxonomic
-# Only plotting profiles where max > 0.05
-tmp <- taxo_profile[,which(apply(taxo_profile, 2, function(x) (x = max(x, na.rm = TRUE))) > 0.05)]
+corrplot(as.matrix(cor_mat), diag = FALSE,
+         title = "Functional vs taxo composition similarity", tl.cex = 0.8, tl.col =  "black")
 
-profile_similarity <- cor(func_profile[,c(2,5,3,8,9,1,4,6,7)], tmp[,c(1,4,8,2,3,5,6,7)], use = 'pairwise.complete.obs')
-testRes = cor.mtest(as.matrix(profile_similarity), conf.level = 0.95)
-corrplot(as.matrix(profile_similarity), p.mat = testRes$p, diag = FALSE, is.corr=FALSE,
-         title = "Taxonomic composition similarity", tl.cex = 0.6, tl.col =  "black")
+par(mar = c(10,5,5,2))
+plot(as.dendrogram(func_hclust), main = "Functional dendrogram")
+plot(as.dendrogram(taxo_hclust), main = "Taxonomic dendrogram")
 
-# --- Normalized functional maps similarity
-norm_similarity <- as.dist(cor(norm_data, use = "pairwise.complete.obs"))
-
-par(mfrow = c(2,2), mar = c(2,5,5,3))
-testRes = cor.mtest(as.matrix(norm_similarity), conf.level = 0.95)
-corrplot(as.matrix(norm_similarity), p.mat = testRes$p, type = 'upper', diag = FALSE,
-         title = "Norm. Relative abundance similarity", tl.cex = 0.6, tl.col =  "black", order = 'FPC')
-
-
-
+dev.off()
 
 # --- END
   

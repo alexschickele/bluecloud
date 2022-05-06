@@ -98,7 +98,7 @@ model_proj <- function(bluecloud.wd = bluecloud_dir,
   col_matrix <- colmat(pal = colorRampPalette(custom_pal)(100), value = 0,
                        xlab = "Coef. Variation (%)", ylab = "Relative Abundance")
   y_hat_m_rescaled <- apply(y_hat_m, 2, function(x){x/max(x, na.rm = TRUE)})
-  
+
   for(i in 1:ncol(y_hat_m)){
     r_m <- setValues(r0, y_hat_m_rescaled[,i])
     r_cv <- setValues(r0, y_hat_cv[,i])

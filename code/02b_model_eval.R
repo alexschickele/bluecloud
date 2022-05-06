@@ -121,7 +121,7 @@ model_eval <- function(bluecloud.wd = bluecloud_dir,
                              t = 1:n_tree, cv = cv, nvar = ncol(X0),
                              SIMPLIFY = FALSE,
                              USE.NAMES = FALSE,
-                             mc.cores = 50)
+                             mc.cores = 20)
       var_count0 <- Reduce(`+`, var_count0)
       var_count[cv,] <- var_count0
     } # fold loop
@@ -141,6 +141,6 @@ model_eval <- function(bluecloud.wd = bluecloud_dir,
     box()
 
   } # var imp
-  return(list(r2 = r2, rmse = rmse, r2_tar = r2_tar, r_cor_tar = r2cor_tar, rmse_tar = rmse_tar, var_count = var_count))
+  return(list(r2 = r2, rmse = rmse, r2_tar = r2_tar, r_cor_tar = r2cor_tar, rmse_tar = rmse_tar, var_count = var_count, y_hat = y_hat))
 
 } # end function

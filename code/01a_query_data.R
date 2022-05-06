@@ -42,7 +42,7 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
     target <- query %>% 
       dplyr::select("CC") %>% 
       inner_join(tbl(db, "data")) %>% 
-      dplyr::select(c("Genes", "CC", "readCount", "Station", "Longitude", "Latitude", "KEGG_ko","KEGG_Module","Description", "Class", "Genus")) %>% 
+      dplyr::select(c("Genes", "CC", "readCount", "Station", "Longitude", "Latitude", "KEGG_ko","KEGG_Module","Description", "Phylum","Class", "Genus")) %>% 
       collect()
     target <- target %>% mutate(MAG = gsub("(.*_){2}(\\d+)_.+", "\\2", Genes))
     copy_to(db, target, overwrite = TRUE)
@@ -62,6 +62,7 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
       summarise(kegg_ko = paste(unique(KEGG_ko), collapse = ", "),
                 kegg_module = paste(unique(KEGG_Module), collapse = ", "),
                 desc = paste(unique(Description), collapse = ", "),
+                phylum = paste(unique(Phylum), collapse = ", "),
                 class = paste(unique(Class), collapse = ", "),
                 genus = paste(unique(Genus), collapse = ", "),
                 mag = paste(unique(MAG), collapse = ", ")) %>% 
@@ -127,18 +128,9 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
   
   # --- 7. Building the final target table "Y"
   Y <- Y0[1:50]
-  
-  # Y <- target %>% 
-  #   dplyr::select(-Latitude, -Longitude) %>%
-  #   collect() %>% 
-  #   arrange(Station) %>% 
-  #   dplyr::select(-Station)
-  # Y <- Y/max(Y, na.rm = TRUE)
-  # if(relative == TRUE){
-  #   Y <- apply(as.matrix(Y), 1, function(x){if(sum(x)>0){x = x/sum(x, na.rm = TRUE)} else {x = x}}) %>%
-  #     aperm(c(2,1)) %>%
-  #     as.data.frame()
-  # }
+  Y <- apply(as.matrix(Y), 1, function(x){if(sum(x)>0){x = x/sum(x, na.rm = TRUE)} else {x = x}}) %>%
+        aperm(c(2,1)) %>%
+        as.data.frame()
   
   write_feather(Y, path = paste0(bluecloud.wd,"/data/Y.feather"))
   

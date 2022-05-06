@@ -51,7 +51,7 @@ query_analysis <- function(bluecloud.wd = bluecloud_dir,
     
   # ---  3.  Initialization
   # Color palette for superposed plots
-  pal <- alpha(c("white","orange","blue","black"), c(0.3,0.3,0.3,1))
+  pal <- alpha(c("white","red","blue","black"), c(0.5,0.3,0.3,1))
   dens <- c(NA,NA,NA,20)
   
   # CC_desc tables with different filters
@@ -61,7 +61,7 @@ query_analysis <- function(bluecloud.wd = bluecloud_dir,
                    three = list(CC_desc = CC_desc %>% 
                                   filter(min_exl >= 1)),
                    four = list(CC_desc = CC_desc %>% 
-                                 filter(min_exl >= 0.5 & n_station >= 10)))
+                                 filter(min_exl >= 1 & n_station >= 10)))
   
   # --- 4. Building distribution tables in list_all
   for(i in 1:length(list_all)){
@@ -129,7 +129,7 @@ query_analysis <- function(bluecloud.wd = bluecloud_dir,
     print(chisq.test(list_all[[1]]$df_list[[1]],list_all[[i]]$df_list[[1]]))
   }
   
-  # Taxoonomic class plot
+  # Taxonomic class plot
   barplot(list_all[[1]]$df_list[[2]], las = 2, cex.names = 0.6, col = pal[1], main = "Taxo. class composition", ylab = "Frequency")
   abline(h = seq(0,100,20), col = "black")
   for(i in 2:length(list_all)){

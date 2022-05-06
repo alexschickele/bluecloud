@@ -40,7 +40,7 @@ db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/",FILTER,"_D
 
 # --- 2. Open "clusters" and sort by n_genes
 taxo <- read_feather(paste0(bluecloud.wd, "/omic_data/CC_PFAM_taxo_80cutoff.feather")) %>% 
-  dplyr::select(c("Genes","Class","Order","Family","Genus"))
+  dplyr::select(c("Genes","Phylum","Class","Order","Family","Genus"))
 clusters <- read_feather(paste0(bluecloud.wd, "/omic_data/CC_80_withallannot.feather")) %>% 
   dplyr::select(c("Genes","CC", "COG_category","GOs", "KEGG_ko", "KEGG_Pathway", "KEGG_Module", "PFAMs", "Description")) %>% 
   left_join(taxo)
