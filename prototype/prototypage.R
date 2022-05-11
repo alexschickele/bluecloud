@@ -1,3 +1,24 @@
+# Functional vs env plot with raw data
+par(mfrow = c(3,3))
+for(j in 1:length(plot_list)){
+  # Extract functional data
+  id <- which(str_detect(CC_desc_e$kegg_ko, plot_list[[j]])==TRUE)
+  x <- NULL
+  y <- NULL
+  for(k in 1:length(id)){
+    x <- cbind(x, query$X$CHLsd)
+    y <- cbind(y, query$Y0[,id[k]])
+  }
+  
+  plot(x, y, ylim = c(0, 0.5), main = names(plot_list)[j], pch = 20, col = alpha("black", 0.2))
+  grid(col = "gray30")
+  lines(x = x[order(x[,1]),1], y = apply(y, 1, mean)[order(x[,1])], col = "red")
+
+} # for j
+
+
+
+# ==============================================================================
 # --- Testing different between sum of columns in Y and y_hat_m
 sum_Y <- apply(query$Y, 2, max)
 sum_Y <- sum_Y/max(sum_Y)

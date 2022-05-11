@@ -115,7 +115,7 @@ for(p in 1:length(kegg_p0)){
   # 4. Do projections & save -----------------------------------------------------
   proj <- model_proj(bluecloud.wd = bluecloud_dir,
                      data.wd = data_dir,
-                     ENV_METRIC = c(env_metric, "dist","bathy"))
+                     ENV_METRIC = c(env_metric))
   
   save(query, eval, proj, file = paste0(bluecloud_dir, "/output/", output_dir, "/output.RData"))
 
@@ -184,11 +184,6 @@ dev.off()
 
 # ============================ INITIALIZE PARAMETERS ===========================
 # --- Create factor table
-# Done on the escoufier selected points
-# factor_raw <- list(query$CC_desc$kegg_module[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]],
-#                 query$CC_desc$kegg_ko[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]],
-#                 query$CC_desc$class[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]],
-#                 query$CC_desc$mag[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]])
 factor_raw <- list(query$CC_desc$kegg_module[query$e$vr],
                    query$CC_desc$kegg_ko[query$e$vr],
                    query$CC_desc$class[query$e$vr],
@@ -217,7 +212,7 @@ plot_list <- list(PPC = "1595",
 # --- Supplementary parameters parameters
 CC_desc_e <- query$CC_desc[query$e$vr,] %>% inner_join(query$nn_ca)
 r0 <- stack(paste0(data.wd,"/features"))[[1]]
-scaled <- TRUE
+scaled <- FALSE
 
 proj_data <- apply(proj$y_hat_m, 2, function(x){x = x/sum(x, na.rm = TRUE)}) 
 
