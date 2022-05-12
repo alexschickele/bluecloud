@@ -14,8 +14,8 @@ features <- stack(paste0(data.wd,"/features"))
 features <- features[[grep(paste(ENV_METRIC, collapse = "|"), names(features))]]
 Y0 <- as.data.frame(read_feather(paste0(bluecloud.wd,"/data/Y.feather")))
 X0 <- as.data.frame(read_feather(paste0(bluecloud.wd,"/data/X.feather")))
-N <- nrow(X0)
-X <- as.data.frame(getValues(features))
+# N <- nrow(X0)
+# X <- as.data.frame(getValues(features))
 
 # --- Create X_tr and Y_tr
 b <- 1 # i.e. kept from bootstrap script, set to 1
@@ -63,7 +63,7 @@ mpartial <- function(object, train, pred.var, grid.resolution=10
   # compute the pdp for each variable
   yhat <- parallel::mclapply(grid, function(val) {
     X <- train
-    X[,pred.var] <- val
+    X[,all_of(pred.var)] <- val # Not sure about the 'all_of'
     this_yhat <- mbtr_predict(model = object, X_pred = X, n_boosts = HYPERPARAMETERS$n_boost)
     this_yhat <- apply(this_yhat, 2, mean)
   }, mc.cores=cores)
@@ -91,18 +91,19 @@ plot_list <- list(PPC = "1595",
 CC_desc_e <- query$CC_desc[query$e$vr,] %>% inner_join(query$nn_ca)
 r0 <- stack(paste0(data.wd,"/features"))[[1]]
 scaled <- TRUE
-pal <- brewer.pal(9,"Spectral")
 
 # --- Loop for all PDPs
-par(mfrow = c(3,3), mar = c(2,2,4,1), bg = "black", col.axis = "white", col.main = "white", col.lab = "white", col.sub = "white")
+if(scaled == TRUE){pdf(paste0(bluecloud_dir,"/output/", output_dir, "/PDP_scaled.pdf"))
+}else{pdf(paste0(bluecloud_dir,"/output/", output_dir, "/PDP.pdf"))}
+par(mfrow = c(3,3), mar = c(4,2,4,1))
 
-for(i in c(5,21,22)){
+for(i in 1:dim(X_tr)[2]){
   # --- Calculating PDPs
-  mpdp <- mpartial(object = m, pred.var = i, grid.resolution = 10, train = X_tr, cores = 1)
-  
+  mpdp <- mpartial(object = m, pred.var = i, grid.resolution = 20, train = X_tr, cores = 1)
   x0 <- mpdp[,1]
   mpdp <- mpdp[,-1]
-  names(mpdp) <- names(Y_tr)
+  mpdp <- apply(mpdp, 2, function(x){x = x/sum(x, na.rm = TRUE)}) # sum columns = 1
+  colnames(mpdp) <- names(Y_tr)
   cat(paste(Sys.time(), " --- mpdp computed ---", names(features)[i], "\n"))
   
   # --- Aggregating by functions
@@ -112,50 +113,19 @@ for(i in c(5,21,22)){
     id <- CC_desc_e$pos_nn_CC[which(str_detect(CC_desc_e$kegg_ko, plot_list[[j]])==TRUE)]
     if(scaled == TRUE){scale_CC <- query$nn_ca$sum_CC[which(str_detect(CC_desc_e$kegg_ko, plot_list[[j]])==TRUE)]} else {scale_CC <- 1}
     
-    tmp <- apply(mpdp[,id],1, function(x){x = x*scale_CC}) %>% t()
-    tmp <- apply(tmp, 1, sum)
-    aggr_mpdp <- cbind(aggr_mpdp, tmp)
-    colnames(aggr_mpdp)[j] <- names(plot_list)[j]
+    tmp <- apply(mpdp[,id],1, function(x){x = x*scale_CC}) %>% t() # select and scale patterns corresponding to enzyme
+    tmp <- apply(tmp, 1, sum)                                      # aggregate all patterns by sum
+    aggr_mpdp <- cbind(aggr_mpdp, tmp)                             # all enzymes together
+    colnames(aggr_mpdp)[j] <- names(plot_list)[j]                  # pretty names
   } # j aggregating loop
   cat(paste(Sys.time(), " --- mpdp aggregated ---", names(features)[i], "\n"))
-  
-  cum_mpdp <- apply(aggr_mpdp, 1, function(x){x <- cumsum(x)
-                                              x <- x/max(x)}) %>% 
-    t()
-  
+
   # --- Plot
-  # for(j in 1:length(plot_list)){
-  #   if(j == 1){
-  #     plot(x0, cum_mpdp[,j], type = 'n', ylim = c(0,1), col = pal[j], main = names(features)[i])
-  #     polygon(x = c(x0, rev(x0)), y = c(rep(0,length(x0)), rev(cum_mpdp[,j])), col = pal[j], border = FALSE,
-  #             ylim = c(0,1))
-  #   } else {
-  #     polygon(x = c(x0, rev(x0)), y = c(cum_mpdp[,j-1], rev(cum_mpdp[,j])), col = pal[j], border = FALSE)
-  #   }
-  # } # j plot loop
-  
-  # --- Plot v2
   for(j in 1:length(plot_list)){
-    tmp <- apply(aggr_mpdp, 2, function(x){x <- x/max(x)})
-    if(j == 1){
-      plot(x0, tmp[,j], type = 'l', lwd = 1, ylim = c(0,1), col = pal[j], main = names(features)[i])
-      box(col = "white")
-      grid(col = "white")
-    } else {
-      lines(x0, tmp[,j], type = 'l', lwd = 1, col = pal[j])
-    }
-  } # j plot loop
-  
-  # Plot v3
-  for(j in 1:length(plot_list)){
-    plot(x0, aggr_mpdp[,j], type = 'l', lwd = 1, ylim = c(0,1), col = pal[j], xlab = names(features)[i])
+    # Rescaled at max = 1 for not yet defined reasons
+    plot(x0, aggr_mpdp[,j]/max(aggr_mpdp[,j]), type = 'l', lwd = 3, ylim = c(0,1),
+         xlab = names(features)[i], main = names(plot_list)[j])
+    grid()
   }
 } # i th feature
-
-
-
-
-
-
-
-
+dev.off()
