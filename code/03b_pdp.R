@@ -92,22 +92,20 @@ CC_desc_e <- query$CC_desc[query$e$vr,] %>% inner_join(query$nn_ca)
 r0 <- stack(paste0(data.wd,"/features"))[[1]]
 scaled <- TRUE
 
-# --- Loop for all PDPs
-if(scaled == TRUE){pdf(paste0(bluecloud_dir,"/output/", output_dir, "/PDP_scaled.pdf"))
-}else{pdf(paste0(bluecloud_dir,"/output/", output_dir, "/PDP.pdf"))}
-par(mfrow = c(3,3), mar = c(4,2,4,1))
+# --- Build PDP
+all_pdp <- list()
 
 for(i in 1:dim(X_tr)[2]){
+  all_pdp[[names(features)[i]]] <- list()
   # --- Calculating PDPs
   mpdp <- mpartial(object = m, pred.var = i, grid.resolution = 20, train = X_tr, cores = 1)
-  x0 <- mpdp[,1]
+  all_pdp[[i]][["grid"]] <- mpdp[,1]
   mpdp <- mpdp[,-1]
   mpdp <- apply(mpdp, 2, function(x){x = x/sum(x, na.rm = TRUE)}) # sum columns = 1
   colnames(mpdp) <- names(Y_tr)
   cat(paste(Sys.time(), " --- mpdp computed ---", names(features)[i], "\n"))
   
   # --- Aggregating by functions
-  aggr_mpdp <- NULL
   for(j in 1:length(plot_list)){
     # Extract nearest neighbor data
     id <- CC_desc_e$pos_nn_CC[which(str_detect(CC_desc_e$kegg_ko, plot_list[[j]])==TRUE)]
@@ -115,17 +113,88 @@ for(i in 1:dim(X_tr)[2]){
     
     tmp <- apply(mpdp[,id],1, function(x){x = x*scale_CC}) %>% t() # select and scale patterns corresponding to enzyme
     tmp <- apply(tmp, 1, sum)                                      # aggregate all patterns by sum
-    aggr_mpdp <- cbind(aggr_mpdp, tmp)                             # all enzymes together
-    colnames(aggr_mpdp)[j] <- names(plot_list)[j]                  # pretty names
+    all_pdp[[i]][["pdp"]] <- cbind(all_pdp[[i]][["pdp"]], tmp)     # all enzymes together
+    colnames(all_pdp[[i]][["pdp"]])[j] <- names(plot_list)[j]      # pretty names
   } # j aggregating loop
   cat(paste(Sys.time(), " --- mpdp aggregated ---", names(features)[i], "\n"))
+} # i th feature
+  
+  
+# --- Plot
+if(scaled == TRUE){pdf(paste0(bluecloud_dir,"/output/", output_dir, "/PDP_scaled.pdf"))
+}else{pdf(paste0(bluecloud_dir,"/output/", output_dir, "/PDP.pdf"))}
+par(mfrow = c(3,3), mar = c(4,2,4,1))
 
-  # --- Plot
+for(i in 1:dim(X_tr)[2]){
   for(j in 1:length(plot_list)){
+    # Get maximum per enzyme across all pdp
+    max_j <- lapply(all_pdp, function(x){max(x[["pdp"]][,j])}) %>% unlist()
+    
     # Rescaled at max = 1 for not yet defined reasons
-    plot(x0, aggr_mpdp[,j]/max(aggr_mpdp[,j]), type = 'l', lwd = 3, ylim = c(0,1),
+    plot(all_pdp[[i]][["grid"]], all_pdp[[i]][["pdp"]][,j]/max(max_j), type = 'l', lwd = 3, ylim = c(0,1),
          xlab = names(features)[i], main = names(plot_list)[j])
-    grid()
+    grid(col = "gray20")
   }
 } # i th feature
 dev.off()
+
+# --- Plot between 0 and 1
+if(scaled == TRUE){pdf(paste0(bluecloud_dir,"/output/", output_dir, "/PDP01_scaled.pdf"))
+}else{pdf(paste0(bluecloud_dir,"/output/", output_dir, "/PDP01.pdf"))}
+par(mfrow = c(3,3), mar = c(4,2,4,1))
+
+for(i in 1:dim(X_tr)[2]){
+  for(j in 1:length(plot_list)){
+    # Get maximum per enzyme across all pdp
+    max_j <- lapply(all_pdp, function(x){max(x[["pdp"]][,j])}) %>% unlist()
+    min_j <- lapply(all_pdp, function(x){min(x[["pdp"]][,j])}) %>% unlist()
+    
+    # Rescaled at max = 1 for not yet defined reasons
+    tmp <- (all_pdp[[i]][["pdp"]][,j]-min(min_j))/(max(max_j)-min(min_j))
+    plot(all_pdp[[i]][["grid"]], tmp, type = 'l', lwd = 3, ylim = c(0,1),
+         xlab = names(features)[i], main = names(plot_list)[j])
+    grid(col = "gray20")
+  }
+} # i th feature
+dev.off()
+
+# --- Plot between 0 and 1 all together to better compare variables
+pal = brewer.pal(9, "Paired")
+if(scaled == TRUE){pdf(paste0(bluecloud_dir,"/output/", output_dir, "/PDP01_synthetic_scaled.pdf"))
+}else{pdf(paste0(bluecloud_dir,"/output/", output_dir, "/PDP01_synthetic.pdf"))}
+par(mfrow = c(3,3), mar = c(2,2,4,6))
+
+for(i in 1:dim(X_tr)[2]){
+  for(j in 1:length(plot_list)){
+    # Get maximum per enzyme across all pdp
+    max_j <- lapply(all_pdp, function(x){max(x[["pdp"]][,j])}) %>% unlist()
+    min_j <- lapply(all_pdp, function(x){min(x[["pdp"]][,j])}) %>% unlist()
+    
+    # Rescaled at max = 1 for not yet defined reasons
+    tmp <- (all_pdp[[i]][["pdp"]][,j]-min(min_j))/(max(max_j)-min(min_j))
+    
+    if(j == 1){
+      plot(all_pdp[[i]][["grid"]], tmp, type = 'l', lwd = 1, ylim = c(0,1), col = pal[j],
+           xlab = "", main = names(features)[i])
+      mtext(side = 4, at = tail(tmp, 1), text = names(plot_list)[j], col = pal[j], padj = 0.5, las = 1, cex = 0.6)
+      grid(col = "gray20")
+    } else {
+      lines(all_pdp[[i]][["grid"]], tmp, lwd = 1, col = pal[j])
+      mtext(side = 4, at = tail(tmp, 1), text = names(plot_list)[j], col = pal[j], padj = 0.5, las = 1, cex = 0.6)
+    } # end if
+    
+  }
+} # i th feature
+dev.off()
+
+# --- Plot features for comparison
+pal <- colorRampPalette(col = rev(brewer.pal(10,"Spectral")))(100)
+
+pdf(paste0(bluecloud_dir,"/output/", output_dir, "/features.pdf"))
+par(mfrow=c(3,3))
+
+for(j in 1:nlayers(features)){
+  plot(features[[j]], col= pal, main = names(features)[j])
+}
+dev.off()
+
