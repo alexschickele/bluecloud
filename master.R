@@ -219,10 +219,9 @@ proj_data <- apply(proj$y_hat_m, 2, function(x){x = x/sum(x, na.rm = TRUE)})
 # --- Colors
 pal <- colorRampPalette(col = rev(brewer.pal(10,"Spectral")))(100)
 
-# =================== BUILDING FUNCTIONAL DATA, PROJ & PROFILES ================
+# =================== BUILDING FUNCTIONAL DATA & PROJ ==========================
 # 1. Initialize parameters -----------------------------------------------------
 func_data <- NULL
-func_profile <- NULL
 
 # 2. Building data, rasters and profiles ---------------------------------------
 for(j in 1:length(plot_list)){
@@ -238,20 +237,13 @@ for(j in 1:length(plot_list)){
   # Building functional raster
   if(j==1){func_r <- setValues(r0, tmp)} 
   else {func_r <- stack(func_r, setValues(r0, tmp))}
-  
-  # Building functional latitudinal profile
-  tmp <- as.matrix(func_r[[j]]) %>% 
-    apply(1, function(x) (x = mean(x, na.rm = TRUE)))
-  func_profile <- cbind(func_profile,tmp)
 }
-colnames(func_data) <- colnames(func_profile) <- names(plot_list)
+colnames(func_data) <- names(plot_list)
 names(func_r) <- names(plot_list)
 
-# ============== BUILDING TAXONOMIC DATA, PROJ & PROFILE =======================
+# ============== BUILDING TAXONOMIC DATA =======================================
 # 1. Initialize parameters -----------------------------------------------------
 taxo_data <- NULL
-taxo_profile <- NULL
-taxo_comp <- NULL
 
 # 2. Building data, rasters and profiles ---------------------------------------
 for(j in 1:length(factor_names[[3]])){
@@ -268,41 +260,12 @@ for(j in 1:length(factor_names[[3]])){
   } # if length ID > 1
 
   taxo_data <- cbind(taxo_data, tmp)
-  
-  # Building taxonomic raster
-  if(j==1){taxo_r <- setValues(r0, tmp)} 
-  else {taxo_r <- stack(taxo_r, setValues(r0, tmp))}
-  
-  # Building taxonomic latitudinal profile
-  tmp <- as.matrix(taxo_r[[j]]) %>% 
-    apply(1, function(x) (x = mean(x, na.rm = TRUE)))
-  taxo_profile <- cbind(taxo_profile,tmp)
 }
-colnames(taxo_data) <- colnames(taxo_profile) <- factor_names[[3]]
-names(taxo_r) <- factor_names[[3]]
+colnames(taxo_data) <- factor_names[[3]]
 
-# 3. Building taxonomic composition per func_r ---------------------------------
-for(j in 1:length(plot_list)){
-  # Extract functional data
-  id <- CC_desc_e$pos_nn_CC[which(str_detect(CC_desc_e$kegg_ko, plot_list[[j]])==TRUE)]
-  
-  # Taxonomic proportions
-  df <- matrix(0, nrow = length(id), ncol = length(factor_names[[3]]), dimnames = list(CC_desc_e$CC[id], factor_names[[3]]))
-  for(k in 1:dim(df)[[1]]){
-    for(l in 1:dim(df)[[2]]){
-      if(str_detect(factor_raw[[3]][id[k]], factor_names[[3]][l])==TRUE){df[k,l] <- df[k,l]+sum(proj_data[,id[k]], na.rm = TRUE)}
-    }
-  }
-  df <- apply(df,2,sum)
-  df <- df/sum(df)
-  taxo_comp <- cbind(taxo_comp, df)
-} # for j
-colnames(taxo_comp) <- names(plot_list)
-
-# ============== BUILDING MAG DATA, PROJ & PROFILE =======================
+# ============== BUILDING MAG DATA =============================================
 # 1. Initialize parameters -----------------------------------------------------
 mag_data <- NULL
-mag_comp <- NULL
 
 # 2. Building data, rasters and profiles ---------------------------------------
 for(j in 1:length(factor_names[[4]])){
@@ -322,27 +285,6 @@ for(j in 1:length(factor_names[[4]])){
 }
 colnames(mag_data) <- factor_names[[4]]
 
-# Sum lines at 1, i.e. back to relative
-# mag_data <- apply(mag_data, 2, function(x) (x = x/sum(x, na.rm = TRUE)))
-
-# 2. Building mag composition per func_r ---------------------------------
-for(j in 1:length(plot_list)){
-  # Extract functional data
-  id <- CC_desc_e$pos_nn_CC[which(str_detect(CC_desc_e$kegg_ko, plot_list[[j]])==TRUE)]
-  
-  # Taxonomic proportions
-  df <- matrix(0, nrow = length(id), ncol = length(factor_names[[4]]), dimnames = list(CC_desc_e$CC[id], factor_names[[4]]))
-  for(k in 1:dim(df)[[1]]){
-    for(l in 1:dim(df)[[2]]){
-      if(str_detect(factor_raw[[4]][id[k]], factor_names[[4]][l])==TRUE){df[k,l] <- df[k,l]+sum(proj_data[,id[k]], na.rm = TRUE)}
-    }
-  }
-  df <- apply(df,2,sum)
-  df <- df/sum(df)
-  mag_comp <- cbind(mag_comp, df)
-} # for j
-colnames(mag_comp) <- names(plot_list)
-
 # =========================== GRAPHICAL OUTPUTS ================================
 # 1. Functional maps -----------------------------------------------------------
 r <- func_r
@@ -351,11 +293,6 @@ if(scaled == TRUE){pdf(paste0(bluecloud_dir,"/output/", output_dir, "/Functional
 
 par(mfrow = c(3,3), mar = c(7,2,3,2))
 plot(func_r, col = pal)
-# for(j in 1:length(plot_list)){
-#   max_breaks <- ceiling(max(getValues(r[[j]]), na.rm = TRUE)/max(getValues(r), na.rm = TRUE)*100)
-#   min_breaks <- floor(min(getValues(r[[j]]), na.rm = TRUE)/max(getValues(r), na.rm = TRUE)*100)
-#   plot(r[[j]], col = pal[min_breaks:max_breaks], main = gsub("_"," ", names(r[[j]])))
-# }
 dev.off()
 
 # 2. Supplementary barplots ----------------------------------------------------
@@ -373,32 +310,7 @@ for(j in 1:length(plot_list)){
 }
 dev.off()
 
-# 3. Longitudinal profiles -----------------------------------------------------
-if(scaled == TRUE){pdf(paste0(bluecloud_dir,"/output/", output_dir, "/Latitudinal_profiles_scaled.pdf"))
-}else{pdf(paste0(bluecloud_dir,"/output/", output_dir, "/Latitudinal_profiles.pdf"))}
-
-# --- Functional profiles
-par(mfrow = c(3,3), mar=c(5,4,3,2))
-
-for(j in 1:length(plot_list)){
-  plot(func_profile[,j], seq(89,-90), horiz = TRUE, border = NA, col = "black", type  = 'l', lwd = 2,
-       ylim = c(-90, 90), xlim = c(0,0.3),
-       ylab = "Latitude", xlab = "Relative abundancy", main = paste(names(plot_list)[j], ": lat. profile"))
-  grid()
-}
-
-# --- Taxonomic profiles
-for(j in 1:length(factor_names[[3]])){
-  if(max(taxo_profile[,j], na.rm = TRUE) > 0.05){
-    plot(taxo_profile[,j], seq(89,-90), horiz = TRUE, border = NA, col = "black", type  = 'l', lwd = 2,
-         ylim = c(-90, 90), xlim = c(0,0.6),
-         ylab = "Latitude", xlab = "Relative abundancy", main = paste(factor_names[[3]][j], ": lat. profile"))
-    grid()
-  }
-}
-dev.off()
-
-# 4. Correlation plots ---------------------------------------------------------
+# 3. Correlation plots ---------------------------------------------------------
 # --- Load additional libraries
 library(vegan)
 library(corrplot)
@@ -407,11 +319,8 @@ if(scaled == TRUE){pdf(paste0(bluecloud_dir,"/output/", output_dir, "/Correlatio
 }else{pdf(paste0(bluecloud_dir,"/output/", output_dir, "/Correlations.pdf"))}
 
 par(mfrow = c(2,2), mar = c(2,5,5,3))
-# --- Functional and taxonomic similarity test & correlation
+# --- Functional correlation
 func_similarity <- as.dist(cor(func_data, use = "pairwise.complete.obs"))
-taxo_similarity <- 1-vegdist(t(taxo_comp), "bray")
-mantel(taxo_similarity, func_similarity, method = "pearson", permutations = 1e+5)
-
 corrplot(as.matrix(func_similarity), type = 'lower', diag = FALSE,
           tl.cex = 1, tl.col =  "black", order = 'FPC')
 
