@@ -1,3 +1,22 @@
+
+# ==============================================================================
+# Uncertainty propagation in the aggregated models
+one <- runif(100, 0, 20)
+two <- runif(100, 80, 100)
+
+mean(one)
+sd(one)/mean(one)
+mean(two)
+sd(two)/mean(two)
+
+three <- c(one, two)
+mean(three)
+sd(three)/mean(three)
+
+
+
+
+# ==============================================================================
 # Functional vs env plot with raw data
 par(mfrow = c(3,3))
 for(j in 1:length(plot_list)){
@@ -42,49 +61,82 @@ barplot(sum_Y, las = 2, cex.names = 0.5, col = alpha("red", 0.3))
 barplot(sum_y_hat, las = 2, cex.names = 0.5, col = alpha("blue",0.3), add = TRUE)
 
 
+# ==============================================================================
 # --- Testing special clustering
+# ==============================================================================
+
 # Clustering func vs mag correlation with taxonomic information on mag cluster
 library(dendextend)
+library(vegan)
 
 # --- Calculate correlation matrix and clusterings
 cor_mat <- cor(mag_data, func_data, use = 'pairwise.complete.obs')
 func_clust <- hclust(dist(t(cor_mat)), method = "ward.D2")
 mag_clust <- hclust(dist(cor_mat), method = "ward.D2")
-mag_group <- cutree(mag_clust, k = 8)
+mag_group <- cutree(mag_clust, k = 5)
 
 # --- Compute list of taxo labels
 taxo_lab <- NULL
 for(j in 1:length(mag_clust$labels)){
-  tmp <- CC_desc_e$phylum[which(str_detect(CC_desc_e$mag, mag_clust$labels[j])==TRUE)] %>% 
+  tmp <- CC_desc_e$class[which(str_detect(CC_desc_e$mag, mag_clust$labels[j])==TRUE)] %>% 
     strsplit(split = ",") %>% unlist() %>% unique()
   if(length(tmp) > 1){tmp <- "Multiple"}
   taxo_lab <- c(taxo_lab, tmp)
 }
+
+# --- Compute scale corresponding to each mag
+mag_scale <- apply(mag_data, 2, function(x) (x = sum(x, na.rm = TRUE)))
 
 # --- Color palette for labels
 taxo_pal <- colorRampPalette(col = rev(brewer.pal(10,"Spectral")))(length(unique(taxo_lab)))
 names(taxo_pal) <- unique(taxo_lab)
 taxo_pal[c(2)] <- "white"
 
+if(scaled == TRUE){pdf(paste0(bluecloud_dir,"/output/", output_dir, "/MAG_correlations_scaled.pdf"))
+}else{pdf(paste0(bluecloud_dir,"/output/", output_dir, "/MAG_correlations.pdf"))}
+
+
 # --- Creating pie charts
-par(mfrow = c(3,3), mar = c(3,3,3,3))
+par(mfrow = c(3,2), mar = c(3,3,3,3))
 for(j in 1:max(mag_group)){
-  tmp <- taxo_lab[which(mag_group[mag_clust$order] == j)] %>% as.factor() %>% summary()
-  pie(tmp, labels = names(tmp), main = paste("group", j),
-      col = taxo_pal[names(tmp)])
+  tmp <- data.frame(lab = taxo_lab[which(mag_group[mag_clust$order] == j)],
+                    scale = mag_scale[which(mag_group[mag_clust$order] == j)]) %>% 
+    group_by(lab) %>% 
+    summarize(sum_scale = sum(scale)) %>% 
+    mutate(sum_scale = sum_scale/sum(sum_scale))
+  
+  pie(tmp$sum_scale, labels = tmp$lab, col = taxo_pal[tmp$lab],
+      main = paste("group", j, "\n", "H:", round(diversity(tmp[which(tmp$lab != "Multiple"),]$sum_scale), 2)))
+}
+
+# --- Creating barplot version with top 5
+par(mfrow = c(3,2), mar = c(3,10,3,3))
+for(j in 1:max(mag_group)){
+  tmp <- data.frame(lab = taxo_lab[which(mag_group[mag_clust$order] == j)],
+                    scale = mag_scale[which(mag_group[mag_clust$order] == j)]) %>% 
+    group_by(lab) %>% 
+    summarize(sum_scale = sum(scale)) %>% 
+    mutate(sum_scale = sum_scale/sum(sum_scale))
+  tmp <- tail(tmp[order(tmp$sum_scale),], 5)
+  barplot(tmp$sum_scale, names = tmp$lab, las = 2, col = "black", horiz = TRUE,  xlim = c(0,1),
+          main = paste("group", j))
+  abline(v = seq(0,1,0.1), lty = "dotted")
+}
+
+
+# --- Create mag group maps ?
+par(mfrow = c(3,2), mar = c(3,3,3,3))
+for(j in 1:max(mag_group)){
+  tmp <- mag_data[,which(mag_group[mag_clust$order] == j)] %>% 
+    apply(1, sum)
+  mag_r <- setValues(r0, tmp)
+  plot(mag_r, col = pal, main = paste("group", j))
 }
 
 # --- Plot heatmap
 heatmap(cor_mat, Rowv = as.dendrogram(mag_clust), Colv = as.dendrogram(func_clust),
-        col = brewer.pal(9, "RdBu"), cexCol = 0.8)
+        col = rev(brewer.pal(9, "RdBu")), cexCol = 0.8)
+
+dev.off()
 
 
-toto <- color_branches(dend = as.dendrogram(mag_clust), col = taxo_pal[as.factor(taxo_lab)])
-labels_cex(toto) <- 0.5
-labels_colors(toto) <- taxo_pal[as.factor(taxo_lab)]
-labels(toto) <- taxo_lab
-plot(toto)
-points(x = seq(1:length(mag_clust$labels)), y = rep(0, length(mag_clust$labels)), pch = 21, bg = taxo_pal[taxo_lab])
-
-
-toto <- heatmap(cor_mat)

@@ -343,31 +343,6 @@ for(j in 1:length(plot_list)){
 } # for j
 colnames(mag_comp) <- names(plot_list)
 
-
-# =================== BUILDING NORMALIZED FUNCTIONAL DATA & PROJ ===============
-#' We normalize the previous functional data by the distribution of their 
-#' taxonomic or mag composition
-# 1. Initialize parameters -----------------------------------------------------
-norm_data <- NULL
-
-# 2. Build normalized functional data and rasters ------------------------------
-for(j in 1:length(plot_list)){
-  # Building normalized taxonomic data from taxo_comp
-  # tmp <- t(taxo_data)*taxo_comp[,j]
-  tmp <- t(mag_data)*mag_comp[,j]
-  tmp <- apply(as.matrix(tmp), 2, function(x) (x = sum(x, na.rm = TRUE)))
-  
-  # Building normalized functional data
-  tmp <- func_data[,j]/tmp
-  norm_data <- cbind(norm_data, tmp)
-  
-  # Building normalized functional raster
-  if(j==1){norm_r <- setValues(r0, tmp)} 
-  else {norm_r <- stack(norm_r, setValues(r0, tmp))}
-}
-colnames(norm_data) <- names(plot_list)
-names(norm_r) <- names(plot_list)
-
 # =========================== GRAPHICAL OUTPUTS ================================
 # 1. Functional maps -----------------------------------------------------------
 r <- func_r
