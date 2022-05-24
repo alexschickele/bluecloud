@@ -212,7 +212,7 @@ plot_list <- list(PPC = "1595",
 # --- Supplementary parameters parameters
 CC_desc_e <- query$CC_desc[query$e$vr,] %>% inner_join(query$nn_ca)
 r0 <- stack(paste0(data.wd,"/features"))[[1]]
-scaled <- FALSE
+scaled <- TRUE
 
 proj_data <- apply(proj$y_hat, c(2,3), function(x){x = x/sum(x, na.rm = TRUE)}) 
 
@@ -224,47 +224,43 @@ pal <- colorRampPalette(col = rev(brewer.pal(10,"Spectral")))(100)
 func_data <- NULL
 func_r_pal <- list()
 
+col_matrix <- colmat(pal = colorRampPalette(rev(brewer.pal(10,"Spectral")))(100), value = 0,
+                     xlab = "Coef. Variation (%)", ylab = "Relative Abundance")
+
 # 2. Building data, rasters and profiles ---------------------------------------
 for(j in 1:length(plot_list)){
-  # Extract nearest neighbor data
+  # --- Extract nearest neighbor data
   id <- CC_desc_e$pos_nn_CC[which(str_detect(CC_desc_e$kegg_ko, plot_list[[j]])==TRUE)]
   if(scaled == TRUE){scale_CC <- query$nn_ca$sum_CC[which(str_detect(CC_desc_e$kegg_ko, plot_list[[j]])==TRUE)]} else {scale_CC <- 1}
   
-  # Building functional data
-  tmp <- apply(proj_data[,id,],c(1,3), function(x){x = x*scale_CC})
+  # --- Building functional data
+  tmp <- apply(proj_data[,id,],c(1,3), function(x){x = x*scale_CC}) # re-scale by raw data if necessary
   tmp <- apply(tmp, c(2,3), sum) # matrix transposed for some reasons...
   
-  # Re-scaling the data between 0 and 1 now
+  # --- Re-scaling the data between 0 and 1 now
   tmp <- apply(tmp, 2, function(x) (x = x/max(x, na.rm = TRUE)))
-  tmp[tmp<0] <- 1e-10 #Negative values (i.e. NA later) are model artefact. 
-                      #Rescaled to infinite small positive to be considered as
+  tmp[tmp<0] <- 1e-10 # Negative values (i.e. NA later) are model artefact. 
+                      # Rescaled to infinite small positive to be considered as
                       # 0 when using raster::cut() in bivarmap
-  
-  # Same with CV
-  tmp_cv <- apply(tmp, 1, function(x) (x = cv(x, na.rm = TRUE)))
-  tmp_cv[tmp_cv>100] <- 100
-  
-  # Save
+
+  # --- Save
   func_data <- abind(func_data, tmp, along = 3)
   
-  # Building functional raster
-  cutx <- seq(0,100,1)
-  cuty <- seq(0,1,0.01)
-  custom_pal <- rev(brewer.pal(10,"Spectral"))
-  col_matrix <- colmat(pal = colorRampPalette(custom_pal)(100), value = 0,
-                       xlab = "Coef. Variation (%)", ylab = "Relative Abundance")
-  
+  # --- Building functional raster and corresponding 3D color palette
   r_m <- setValues(r0, apply(tmp, 1, function(x) (x = mean(x, na.rm = TRUE))))
-  r_cv <- setValues(r0, tmp_cv)
-  tmp <- bivar_map(rasterx = r_cv, rastery = r_m, colormatrix = col_matrix, cutx = cutx, cuty = cuty)
+  r_cv <- setValues(r0, apply(tmp, 1, function(x) (x = cv(x, na.rm = TRUE))))
+  r_cv[r_cv > 100] <- 100
+  
+  tmp <- bivar_map(rasterx = r_cv, rastery = r_m, colormatrix = col_matrix, cutx = seq(0,100,1), cuty = seq(0,1,0.01))
   
   if(j==1){func_r <- tmp[[1]]} 
   else {func_r <- stack(func_r, tmp[[1]])}
   func_r_pal[[j]] <- tmp[[2]]
 }
+# --- Rename data matrix
 dimnames(func_data)[[3]] <- names(plot_list)
 
-# --- SynchroniseNA with coastline etc...
+# --- Synchronise NA and rename raster
 features <- stack(paste0(data.wd,"/features"))
 func_r <- synchroniseNA(stack(features[[1]], func_r))[[-1]]
 names(func_r) <- names(plot_list)
@@ -281,15 +277,15 @@ for(j in 1:length(factor_names[[3]])){
   
   # Building taxonomic data
   if(length(id) > 1){
-    tmp <- apply(as.matrix(proj_data[,id]),1, function(x){x = x*scale_CC})
-    tmp <- apply(as.matrix(tmp), 2, sum) # matrix transposed for some reasons...
+    tmp <- apply(proj_data[,id,], c(1,3), function(x){x = x*scale_CC})
+    tmp <- apply(tmp, c(2,3), sum) # matrix transposed for some reasons...
   } else {
-    tmp <- proj_data[,id]*scale_CC
+    tmp <- proj_data[,id,]*scale_CC
   } # if length ID > 1
 
-  taxo_data <- cbind(taxo_data, tmp)
+  taxo_data <- abind(taxo_data, tmp, along = 3)
 }
-colnames(taxo_data) <- factor_names[[3]]
+dimnames(taxo_data)[[3]] <- factor_names[[3]]
 
 # ============== BUILDING MAG DATA =============================================
 # 1. Initialize parameters -----------------------------------------------------
@@ -303,15 +299,15 @@ for(j in 1:length(factor_names[[4]])){
   
   # Building mag data
   if(length(id)> 1){
-    tmp <- apply(as.matrix(proj_data[,id]),1, function(x){x = x*scale_CC})
-    tmp <- apply(as.matrix(tmp), 2, sum) # matrix transposed for some reasons...
+    tmp <- apply(proj_data[,id,], c(1,3), function(x){x = x*scale_CC})
+    tmp <- apply(tmp, c(2,3), sum) # matrix transposed for some reasons...
   } else {
-    tmp <- proj_data[,id]*scale_CC
+    tmp <- proj_data[,id,]*scale_CC
   } # if length ID > 1
   
-  mag_data <- cbind(mag_data, tmp)
+  mag_data <- abind(mag_data, tmp, along = 3)
 }
-colnames(mag_data) <- factor_names[[4]]
+dimnames(mag_data)[[3]] <- factor_names[[4]]
 
 # =========================== GRAPHICAL OUTPUTS ================================
 # 1. Functional maps -----------------------------------------------------------
@@ -320,35 +316,20 @@ r <- func_r
 if(scaled == TRUE){pdf(paste0(bluecloud_dir,"/output/", output_dir, "/Functional_map_scaled.pdf"))
 }else{pdf(paste0(bluecloud_dir,"/output/", output_dir, "/Functional_map.pdf"))}
 
-par(mfrow = c(3,3), mar = c(7,2,3,2))
+par(mfrow = c(4,3), mar = c(3,2,3,2))
 for(j in 1:length(plot_list)){
   map_proj(proj = r, 
            col = func_r_pal, 
            targetID = j, 
            targetNAME = names(plot_list))
 }
-
+legend_proj(col_matrix = col_matrix)
 
 
 plot(func_r, col = pal)
 dev.off()
 
-# 2. Supplementary barplots ----------------------------------------------------
-# --- Taxonomic composition
-if(scaled == TRUE){pdf(paste0(bluecloud_dir,"/output/", output_dir, "/Functional_composition_scaled.pdf"))
-  }else{pdf(paste0(bluecloud_dir,"/output/", output_dir, "/Functional_composition.pdf"))}
-
-par(mfrow = c(3,3), mar=c(5,3,3,2))
-
-for(j in 1:length(plot_list)){
-  barplot(taxo_comp[,j], las = 2, cex.names = 0.6, col = "gray20", ylim = c(0,1), 
-          main = paste(names(plot_list)[j],": Taxo. composition"))
-  abline(h = c(0.2,0.4,0.6,0.8), lty = "dotted")
-  box()
-}
-dev.off()
-
-# 3. Correlation plots ---------------------------------------------------------
+# 2. Correlation plots ---------------------------------------------------------
 # --- Load additional libraries
 library(vegan)
 library(corrplot)
@@ -358,12 +339,12 @@ if(scaled == TRUE){pdf(paste0(bluecloud_dir,"/output/", output_dir, "/Correlatio
 
 par(mfrow = c(2,2), mar = c(2,5,5,3))
 # --- Functional correlation
-func_similarity <- as.dist(cor(func_data, use = "pairwise.complete.obs"))
+func_similarity <- as.dist(cor(apply(func_data, c(1,3), mean), use = "pairwise.complete.obs"))
 corrplot(as.matrix(func_similarity), type = 'lower', diag = FALSE,
           tl.cex = 1, tl.col =  "black", order = 'FPC')
 
 # --- Functional vs Taxonomic correlations
-cor_mat <- cor(func_data, taxo_data, use = 'pairwise.complete.obs')
+cor_mat <- cor(apply(func_data, c(1,3), mean), apply(taxo_data, c(1,3), mean), use = 'pairwise.complete.obs')
 func_hclust <- hclust(dist(cor_mat), method = 'ward.D2')
 taxo_hclust <- hclust(dist(t(cor_mat)), method = 'ward.D2')
 cor_mat <- cor_mat[func_hclust$order, taxo_hclust$order]
