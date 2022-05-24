@@ -123,7 +123,7 @@ model_proj <- function(bluecloud.wd = bluecloud_dir,
     y_hat_m[which(is.na(getValues(proj[[i]]))),i] <- NA
   }
   
-  return(list(proj = proj, col_matrix = col_matrix, col = col, y_hat_m = y_hat_m))
+  return(list(proj = proj, col_matrix = col_matrix, col = col, y_hat_m = y_hat_m, y_hat = y_hat))
 } # end function
 
 # ==================  PART 3 : plotting projections ============================

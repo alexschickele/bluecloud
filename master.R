@@ -33,7 +33,7 @@ for(p in 1:length(kegg_p0)){
   env_metric = c("mean","sd")
   relative = TRUE
   
-  output_dir <- paste0(kegg_p, "_", cc_id, "_", 
+  output_dir <- paste0(kegg_p, "_test_", cc_id, "_", 
                        paste(cluster_selec, collapse = "_"), "_",
                        paste(env_metric, collapse = "_"), "_",
                        if(relative==TRUE){"rel"} else {"abs"})
@@ -94,7 +94,7 @@ for(p in 1:length(kegg_p0)){
   
   # 2. Run model & save ----------------------------------------------------------
   run <- model_run(bluecloud.wd = bluecloud_dir,
-                   HYPERPARAMETERS = data.frame(LEARNING_RATE = c(5e-3, 5e-3, 5e-3, 5e-3),
+                   HYPERPARAMETERS = data.frame(LEARNING_RATE = c(1e-2, 1e-2, 1e-2, 1e-2),
                                                 N_Q = c(10, 10, 10, 10),
                                                 MEAN_LEAF = c(20, 30, 40, 50)),
                    verbose = TRUE)
@@ -110,7 +110,7 @@ for(p in 1:length(kegg_p0)){
   # 3. Evaluate model ------------------------------------------------------------
   eval <- model_eval(bluecloud.wd = bluecloud_dir,
                      by_target = TRUE,
-                     var_importance = TRUE)
+                     var_importance = FALSE)
   
   # 4. Do projections & save -----------------------------------------------------
   proj <- model_proj(bluecloud.wd = bluecloud_dir,
@@ -214,7 +214,7 @@ CC_desc_e <- query$CC_desc[query$e$vr,] %>% inner_join(query$nn_ca)
 r0 <- stack(paste0(data.wd,"/features"))[[1]]
 scaled <- FALSE
 
-proj_data <- apply(proj$y_hat_m, 2, function(x){x = x/sum(x, na.rm = TRUE)}) 
+proj_data <- apply(proj$y_hat, c(2,3), function(x){x = x/sum(x, na.rm = TRUE)}) 
 
 # --- Colors
 pal <- colorRampPalette(col = rev(brewer.pal(10,"Spectral")))(100)
@@ -222,6 +222,7 @@ pal <- colorRampPalette(col = rev(brewer.pal(10,"Spectral")))(100)
 # =================== BUILDING FUNCTIONAL DATA & PROJ ==========================
 # 1. Initialize parameters -----------------------------------------------------
 func_data <- NULL
+func_r_pal <- list()
 
 # 2. Building data, rasters and profiles ---------------------------------------
 for(j in 1:length(plot_list)){
@@ -230,15 +231,42 @@ for(j in 1:length(plot_list)){
   if(scaled == TRUE){scale_CC <- query$nn_ca$sum_CC[which(str_detect(CC_desc_e$kegg_ko, plot_list[[j]])==TRUE)]} else {scale_CC <- 1}
   
   # Building functional data
-  tmp <- apply(proj_data[,id],1, function(x){x = x*scale_CC})
-  tmp <- apply(tmp, 2, sum) # matrix transposed for some reasons...
-  func_data <- cbind(func_data, tmp)
+  tmp <- apply(proj_data[,id,],c(1,3), function(x){x = x*scale_CC})
+  tmp <- apply(tmp, c(2,3), sum) # matrix transposed for some reasons...
+  
+  # Re-scaling the data between 0 and 1 now
+  tmp <- apply(tmp, 2, function(x) (x = x/max(x, na.rm = TRUE)))
+  tmp[tmp<0] <- 1e-10 #Negative values (i.e. NA later) are model artefact. 
+                      #Rescaled to infinite small positive to be considered as
+                      # 0 when using raster::cut() in bivarmap
+  
+  # Same with CV
+  tmp_cv <- apply(tmp, 1, function(x) (x = cv(x, na.rm = TRUE)))
+  tmp_cv[tmp_cv>100] <- 100
+  
+  # Save
+  func_data <- abind(func_data, tmp, along = 3)
   
   # Building functional raster
-  if(j==1){func_r <- setValues(r0, tmp)} 
-  else {func_r <- stack(func_r, setValues(r0, tmp))}
+  cutx <- seq(0,100,1)
+  cuty <- seq(0,1,0.01)
+  custom_pal <- rev(brewer.pal(10,"Spectral"))
+  col_matrix <- colmat(pal = colorRampPalette(custom_pal)(100), value = 0,
+                       xlab = "Coef. Variation (%)", ylab = "Relative Abundance")
+  
+  r_m <- setValues(r0, apply(tmp, 1, function(x) (x = mean(x, na.rm = TRUE))))
+  r_cv <- setValues(r0, tmp_cv)
+  tmp <- bivar_map(rasterx = r_cv, rastery = r_m, colormatrix = col_matrix, cutx = cutx, cuty = cuty)
+  
+  if(j==1){func_r <- tmp[[1]]} 
+  else {func_r <- stack(func_r, tmp[[1]])}
+  func_r_pal[[j]] <- tmp[[2]]
 }
-colnames(func_data) <- names(plot_list)
+dimnames(func_data)[[3]] <- names(plot_list)
+
+# --- SynchroniseNA with coastline etc...
+features <- stack(paste0(data.wd,"/features"))
+func_r <- synchroniseNA(stack(features[[1]], func_r))[[-1]]
 names(func_r) <- names(plot_list)
 
 # ============== BUILDING TAXONOMIC DATA =======================================
@@ -288,10 +316,20 @@ colnames(mag_data) <- factor_names[[4]]
 # =========================== GRAPHICAL OUTPUTS ================================
 # 1. Functional maps -----------------------------------------------------------
 r <- func_r
+
 if(scaled == TRUE){pdf(paste0(bluecloud_dir,"/output/", output_dir, "/Functional_map_scaled.pdf"))
 }else{pdf(paste0(bluecloud_dir,"/output/", output_dir, "/Functional_map.pdf"))}
 
 par(mfrow = c(3,3), mar = c(7,2,3,2))
+for(j in 1:length(plot_list)){
+  map_proj(proj = r, 
+           col = func_r_pal, 
+           targetID = j, 
+           targetNAME = names(plot_list))
+}
+
+
+
 plot(func_r, col = pal)
 dev.off()
 
