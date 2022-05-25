@@ -88,7 +88,6 @@ for(p in 1:length(kegg_p0)){
                       sum_CC = tmp,
                       scale_CC = tmp/tmp[apply(dist_ca, 1, function(x){x = which(x == min(x))})])
   
-
   # Add it to query
   query[["nn_ca"]] <- nn_ca
   

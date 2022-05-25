@@ -32,11 +32,13 @@ model_proj <- function(bluecloud.wd = bluecloud_dir,
   X <- as.data.frame(getValues(features))
   
   # ================ PART 1 : generating predictions with bootstrap ==============
+  id <- list()
+  
   # --- Create bootstrap X_tr and Y_tr
   for(b in 1:NBOOTSTRAP){
-    id <- sample(seq(1:nrow(X0)), replace = TRUE)
-    X_tr <- X0[id,]
-    Y_tr <- Y0[id,]
+    id[[b]] <- sample(seq(1:nrow(X0)), replace = TRUE)
+    X_tr <- X0[id[[b]],]
+    Y_tr <- Y0[id[[b]],]
     
     write_feather(X_tr, paste0(bluecloud.wd,"/data/",b,"_X_tr.feather"))
     write_feather(Y_tr, paste0(bluecloud.wd,"/data/",b,"_Y_tr.feather"))
@@ -123,7 +125,7 @@ model_proj <- function(bluecloud.wd = bluecloud_dir,
     y_hat_m[which(is.na(getValues(proj[[i]]))),i] <- NA
   }
   
-  return(list(proj = proj, col_matrix = col_matrix, col = col, y_hat_m = y_hat_m, y_hat = y_hat))
+  return(list(proj = proj, col_matrix = col_matrix, col = col, y_hat_m = y_hat_m, y_hat = y_hat, m = m, id = id))
 } # end function
 
 # ==================  PART 3 : plotting projections ============================

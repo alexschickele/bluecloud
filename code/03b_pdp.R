@@ -12,34 +12,8 @@ HYPERPARAMETERS <- read_feather(paste0(bluecloud.wd,"/data/HYPERPARAMETERS.feath
 # --- Load files
 features <- stack(paste0(data.wd,"/features"))
 features <- features[[grep(paste(ENV_METRIC, collapse = "|"), names(features))]]
-Y0 <- as.data.frame(read_feather(paste0(bluecloud.wd,"/data/Y.feather")))
 X0 <- as.data.frame(read_feather(paste0(bluecloud.wd,"/data/X.feather")))
-# N <- nrow(X0)
-# X <- as.data.frame(getValues(features))
-
-# --- Create X_tr and Y_tr
-b <- 1 # i.e. kept from bootstrap script, set to 1
-X_tr <- X0
-Y_tr <- Y0
-
-write_feather(X_tr, paste0(bluecloud.wd,"/data/",b,"_X_tr.feather"))
-write_feather(Y_tr, paste0(bluecloud.wd,"/data/",b,"_Y_tr.feather"))
-
-# --- Re-fitting models on all data
-m <- mbtr_fit(path=paste0(bluecloud.wd, "/data/", b),
-              hp_id = as.character(b),
-              loss_type='mse',
-              n_boosts = as.integer(HYPERPARAMETERS$n_boost),
-              min_leaf= HYPERPARAMETERS$MEAN_LEAF,
-              learning_rate=HYPERPARAMETERS$LEARNING_RATE,
-              lambda_weights=HYPERPARAMETERS$LEARNING_RATE/100,
-              lambda_leaves=HYPERPARAMETERS$LEARNING_RATE*0,
-              n_q= as.integer(HYPERPARAMETERS$N_Q),
-              early_stopping_rounds = as.integer(HYPERPARAMETERS$n_boost))
-
-# --- Reload best_hp models from python because of "previous session invalidity"
-m <- py_load_object(paste0(bluecloud.wd,"/data/",b,"_",b,"_m"), pickle = "pickle")
-m <- m[[1]]
+Y0 <- as.data.frame(read_feather(paste0(bluecloud.wd,"/data/Y.feather")))
 
 # --- Defining function for multivariate PDP adapted to MBTR
 mpartial <- function(object, train, pred.var, grid.resolution=10
@@ -92,72 +66,48 @@ CC_desc_e <- query$CC_desc[query$e$vr,] %>% inner_join(query$nn_ca)
 r0 <- stack(paste0(data.wd,"/features"))[[1]]
 scaled <- TRUE
 
-# --- Build PDP
-all_pdp <- list()
+# --- Building the Partial Dependence Plot (PDPs)
+all_pdp <- list() # final storage structure
 
 for(i in 1:dim(X_tr)[2]){
-  all_pdp[[names(features)[i]]] <- list()
-  # --- Calculating PDPs
-  mpdp <- mpartial(object = m, pred.var = i, grid.resolution = 20, train = X_tr, cores = 1)
-  all_pdp[[i]][["grid"]] <- mpdp[,1]
-  mpdp <- mpdp[,-1]
-  mpdp <- apply(mpdp, 2, function(x){x = x/sum(x, na.rm = TRUE)}) # sum columns = 1
-  colnames(mpdp) <- names(Y_tr)
-  cat(paste(Sys.time(), " --- mpdp computed ---", names(features)[i], "\n"))
+  all_pdp[[names(features)[i]]] <- list() # sub-structure by environmental variable
+  mpdp <- NULL
   
+  # --- Calculating PDPs by bootstrap
+  for(b in 1:NBOOTSTRAP){
+    # --- Reload model and train data from bootstrap predictions
+    X_tr <- X0 # to avoid different train, hence predict data set for PDPs (i.e., different X axis)
+    m <- proj$m[[b]]
+    
+    # --- Calculating PDPs
+    mpdp0 <- mpartial(object = m, pred.var = i, grid.resolution = 20, train = X_tr, cores = min(c(MAX_CLUSTER, NBOOTSTRAP)))
+    all_pdp[[i]][["grid"]] <- mpdp0[,1]
+    mpdp0 <- mpdp0[,-1]
+    mpdp0 <- apply(mpdp0, 2, function(x){x = x/sum(x, na.rm = TRUE)}) # sum columns = 1
+    colnames(mpdp0) <- names(Y0)
+    
+    mpdp <- abind(mpdp, mpdp0, along = 3)
+  } # b bootstrap loop
+  cat(paste(Sys.time(), " --- mpdp computed ---", names(features)[i], "\n"))
+
   # --- Aggregating by functions
   for(j in 1:length(plot_list)){
     # Extract nearest neighbor data
     id <- CC_desc_e$pos_nn_CC[which(str_detect(CC_desc_e$kegg_ko, plot_list[[j]])==TRUE)]
     if(scaled == TRUE){scale_CC <- query$nn_ca$sum_CC[which(str_detect(CC_desc_e$kegg_ko, plot_list[[j]])==TRUE)]} else {scale_CC <- 1}
     
-    tmp <- apply(mpdp[,id],1, function(x){x = x*scale_CC}) %>% t() # select and scale patterns corresponding to enzyme
-    tmp <- apply(tmp, 1, sum)                                      # aggregate all patterns by sum
-    all_pdp[[i]][["pdp"]] <- cbind(all_pdp[[i]][["pdp"]], tmp)     # all enzymes together
-    colnames(all_pdp[[i]][["pdp"]])[j] <- names(plot_list)[j]      # pretty names
+    tmp <- apply(mpdp[,id,], c(1,3), function(x){x = x*scale_CC}) %>% aperm(c(2,1,3)) # select and scale patterns corresponding to enzyme
+    tmp <- apply(tmp, c(1,3), sum)                                                    # aggregate all patterns by sum
+    
+    all_pdp[[i]][["pdp"]] <- cbind(all_pdp[[i]][["pdp"]], apply(tmp, 1, mean))        # all enzymes together (MEAN)
+    all_pdp[[i]][["cv"]] <- cbind(all_pdp[[i]][["cv"]], apply(tmp, 1, cv))            # all enzymes together (CV)
+    
+    colnames(all_pdp[[i]][["pdp"]])[j] <- colnames(all_pdp[[i]][["cv"]])[j] <- names(plot_list)[j]  # pretty names
   } # j aggregating loop
   cat(paste(Sys.time(), " --- mpdp aggregated ---", names(features)[i], "\n"))
 } # i th feature
   
   
-# --- Plot
-if(scaled == TRUE){pdf(paste0(bluecloud_dir,"/output/", output_dir, "/PDP_scaled.pdf"))
-}else{pdf(paste0(bluecloud_dir,"/output/", output_dir, "/PDP.pdf"))}
-par(mfrow = c(3,3), mar = c(4,2,4,1))
-
-for(i in 1:dim(X_tr)[2]){
-  for(j in 1:length(plot_list)){
-    # Get maximum per enzyme across all pdp
-    max_j <- lapply(all_pdp, function(x){max(x[["pdp"]][,j])}) %>% unlist()
-    
-    # Rescaled at max = 1 for not yet defined reasons
-    plot(all_pdp[[i]][["grid"]], all_pdp[[i]][["pdp"]][,j]/max(max_j), type = 'l', lwd = 3, ylim = c(0,1),
-         xlab = names(features)[i], main = names(plot_list)[j])
-    grid(col = "gray20")
-  }
-} # i th feature
-dev.off()
-
-# --- Plot between 0 and 1
-if(scaled == TRUE){pdf(paste0(bluecloud_dir,"/output/", output_dir, "/PDP01_scaled.pdf"))
-}else{pdf(paste0(bluecloud_dir,"/output/", output_dir, "/PDP01.pdf"))}
-par(mfrow = c(3,3), mar = c(4,2,4,1))
-
-for(i in 1:dim(X_tr)[2]){
-  for(j in 1:length(plot_list)){
-    # Get maximum per enzyme across all pdp
-    max_j <- lapply(all_pdp, function(x){max(x[["pdp"]][,j])}) %>% unlist()
-    min_j <- lapply(all_pdp, function(x){min(x[["pdp"]][,j])}) %>% unlist()
-    
-    # Rescaled at max = 1 for not yet defined reasons
-    tmp <- (all_pdp[[i]][["pdp"]][,j]-min(min_j))/(max(max_j)-min(min_j))
-    plot(all_pdp[[i]][["grid"]], tmp, type = 'l', lwd = 3, ylim = c(0,1),
-         xlab = names(features)[i], main = names(plot_list)[j])
-    grid(col = "gray20")
-  }
-} # i th feature
-dev.off()
-
 # --- Plot between 0 and 1 all together to better compare variables
 pal = brewer.pal(9, "Paired")
 if(scaled == TRUE){pdf(paste0(bluecloud_dir,"/output/", output_dir, "/PDP01_synthetic_scaled.pdf"))
@@ -173,13 +123,22 @@ for(i in 1:dim(X_tr)[2]){
     # Rescaled at max = 1 for not yet defined reasons
     tmp <- (all_pdp[[i]][["pdp"]][,j]-min(min_j))/(max(max_j)-min(min_j))
     
+    # Computing 1-CV-based confidence interval
+    tmp_cv <- tmp*all_pdp[[i]][["cv"]][,j]/100
+    
     if(j == 1){
       plot(all_pdp[[i]][["grid"]], tmp, type = 'l', lwd = 1, ylim = c(0,1), col = pal[j],
            xlab = "", main = names(features)[i])
+      polygon(x = c(all_pdp[[i]][["grid"]], rev(all_pdp[[i]][["grid"]])),
+              y = c(tmp-tmp_cv, rev(tmp+tmp_cv)),
+              col = alpha(pal[j], 0.3), border = NA)
       mtext(side = 4, at = tail(tmp, 1), text = names(plot_list)[j], col = pal[j], padj = 0.5, las = 1, cex = 0.6)
       grid(col = "gray20")
     } else {
       lines(all_pdp[[i]][["grid"]], tmp, lwd = 1, col = pal[j])
+      polygon(x = c(all_pdp[[i]][["grid"]], rev(all_pdp[[i]][["grid"]])),
+              y = c(tmp-tmp_cv, rev(tmp+tmp_cv)),
+              col = alpha(pal[j], 0.3), border = NA)
       mtext(side = 4, at = tail(tmp, 1), text = names(plot_list)[j], col = pal[j], padj = 0.5, las = 1, cex = 0.6)
     } # end if
     
