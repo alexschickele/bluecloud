@@ -69,7 +69,7 @@ scaled <- TRUE
 # --- Building the Partial Dependence Plot (PDPs)
 all_pdp <- list() # final storage structure
 
-for(i in 1:dim(X_tr)[2]){
+for(i in 1:dim(X0)[2]){
   all_pdp[[names(features)[i]]] <- list() # sub-structure by environmental variable
   mpdp <- NULL
   

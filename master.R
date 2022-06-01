@@ -33,7 +33,7 @@ for(p in 1:length(kegg_p0)){
   env_metric = c("mean","sd")
   relative = TRUE
   
-  output_dir <- paste0(kegg_p, "_test_", cc_id, "_", 
+  output_dir <- paste0(kegg_p, "_", cc_id, "_", 
                        paste(cluster_selec, collapse = "_"), "_",
                        paste(env_metric, collapse = "_"), "_",
                        if(relative==TRUE){"rel"} else {"abs"})
@@ -198,7 +198,7 @@ factor_names <- lapply(factor_raw, function(x){x <- gsub(x, pattern = " ", repla
 factor_names[[2]] <- kegg_m[paste0("ko:",kegg_m)%in%factor_names[[2]]]
 
 # --- Defining the different maps to plot
-plot_list <- list(PPC = "1595",
+plot_list <- list(PEPC = "1595",
                   GOT = "14454|14455",
                   PEPCK = "01610",
                   MDH_NAD = "00024|00025|00026",
@@ -206,7 +206,7 @@ plot_list <- list(PPC = "1595",
                   MDC_NADP = "00029",
                   MDC_NAD = "00028",
                   GPT_GGAT = "00814|14272",
-                  PPDK = "1006")
+                  PEPDK = "1006")
 
 # --- Supplementary parameters parameters
 CC_desc_e <- query$CC_desc[query$e$vr,] %>% inner_join(query$nn_ca)
@@ -323,9 +323,6 @@ for(j in 1:length(plot_list)){
            targetNAME = names(plot_list))
 }
 legend_proj(col_matrix = col_matrix)
-
-
-plot(func_r, col = pal)
 dev.off()
 
 # 2. Correlation plots ---------------------------------------------------------
