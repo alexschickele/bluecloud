@@ -77,6 +77,12 @@ for(p in 1:length(kegg_p0)){
   dist_ca <- dist(res_ca$col$coord[,1:ndim_ca]) %>% as.matrix()
   dist_ca <- dist_ca[,1:cluster_selec[1]]
   
+  # Distance plot
+  tmp <- dist_ca[1:50,] %>% apply(2, min)
+  hist(tmp[50:length(tmp)], breaks = 50, main = "distance to the nearest Escoufier neighboor", col = "gray50")
+  abline(h = c(1,5), col = c("red","black"))
+  grid(col  = "black")
+  
   # Quantify dominance of CC
   tmp <- apply(query$Y0,2,sum)
 

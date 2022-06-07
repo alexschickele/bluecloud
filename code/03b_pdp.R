@@ -64,7 +64,7 @@ plot_list <- list(PPC = "1595",
 # --- Supplementary parameters parameters
 CC_desc_e <- query$CC_desc[query$e$vr,] %>% inner_join(query$nn_ca)
 r0 <- stack(paste0(data.wd,"/features"))[[1]]
-scaled <- TRUE
+scaled <- FALSE
 
 # --- Building the Partial Dependence Plot (PDPs)
 all_pdp <- list() # final storage structure
