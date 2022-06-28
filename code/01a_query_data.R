@@ -5,7 +5,7 @@
 
 query_data <- function(bluecloud.wd = bluecloud_dir,
                        CC_id = NULL,
-                       KEGG_m = 165:172,
+                       KEGG_m = c(165:172,532),
                        CLUSTER_SELEC = list(N_CLUSTERS = 30, MIN_GENES = 5, EXCLUSIVITY_R = 1),
                        ENV_METRIC = c("mean","sd","dist","bathy"),
                        relative = TRUE){

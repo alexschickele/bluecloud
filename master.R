@@ -20,10 +20,12 @@ source("./code/03a_bootstrap_predict.R")
 MAX_CLUSTER <- 20
 
 # =========================== DEFINE PARAMETERS ================================
-kegg_p0 = c("C4")
-kegg_m0 = list(paste0("K",c("01595","00051","00028","00029","00814","14272","01006","14454","14455","00024","00025","00026","01610")))
+kegg_p0 = c("C4","C4_RUBISCO")
+kegg_m0 = list(paste0("K",c("01595","00051","00028","00029","00814","14272","01006","14454","14455","00024","00025","00026","01610")),
+               paste0("K",c("01601","01602","01595","00051","00028","00029","00814","14272","01006","14454","14455","00024","00025","00026","01610")))
 
-cluster_selec0 = list(c(50,1,1))
+cluster_selec0 = list(c(50,1,1),
+                      c(50,1,1))
 
 for(p in 1:length(kegg_p0)){
   kegg_p = kegg_p0[p]
@@ -115,7 +117,7 @@ for(p in 1:length(kegg_p0)){
   # 3. Evaluate model ------------------------------------------------------------
   eval <- model_eval(bluecloud.wd = bluecloud_dir,
                      by_target = TRUE,
-                     var_importance = FALSE)
+                     var_importance = TRUE)
   
   # 4. Do projections & save -----------------------------------------------------
   proj <- model_proj(bluecloud.wd = bluecloud_dir,
@@ -204,7 +206,8 @@ factor_names <- lapply(factor_raw, function(x){x <- gsub(x, pattern = " ", repla
 factor_names[[2]] <- kegg_m[paste0("ko:",kegg_m)%in%factor_names[[2]]]
 
 # --- Defining the different maps to plot
-plot_list <- list(PEPC = "1595",
+plot_list <- list(RUBISCO = "01601|01602",
+                  PEPC = "1595",
                   GOT = "14454|14455",
                   PEPCK = "01610",
                   MDH_NAD = "00024|00025|00026",
@@ -217,7 +220,7 @@ plot_list <- list(PEPC = "1595",
 # --- Supplementary parameters parameters
 CC_desc_e <- query$CC_desc[query$e$vr,] %>% inner_join(query$nn_ca)
 r0 <- stack(paste0(data.wd,"/features"))[[1]]
-scaled <- TRUE
+scaled <- FALSE
 
 proj_data <- apply(proj$y_hat, c(2,3), function(x){x = x/sum(x, na.rm = TRUE)}) 
 
@@ -294,7 +297,9 @@ dimnames(taxo_data)[[3]] <- factor_names[[3]]
 
 # ============== BUILDING MAG DATA =============================================
 # 1. Initialize parameters -----------------------------------------------------
+# Not including boostrap based uncertainty (no need)
 mag_data <- NULL
+proj_data0 <- apply(proj_data, c(1,2), mean)
 
 # 2. Building data, rasters and profiles ---------------------------------------
 for(j in 1:length(factor_names[[4]])){
@@ -304,15 +309,15 @@ for(j in 1:length(factor_names[[4]])){
   
   # Building mag data
   if(length(id)> 1){
-    tmp <- apply(proj_data[,id,], c(1,3), function(x){x = x*scale_CC})
-    tmp <- apply(tmp, c(2,3), sum) # matrix transposed for some reasons...
+    tmp <- apply(proj_data0[,id], c(1), function(x){x = x*scale_CC})
+    tmp <- apply(tmp, c(2), sum) # matrix transposed for some reasons...
   } else {
-    tmp <- proj_data[,id,]*scale_CC
+    tmp <- proj_data0[,id]*scale_CC
   } # if length ID > 1
   
-  mag_data <- abind(mag_data, tmp, along = 3)
+  mag_data <- abind(mag_data, tmp, along = 2)
 }
-dimnames(mag_data)[[3]] <- factor_names[[4]]
+dimnames(mag_data)[[2]] <- factor_names[[4]]
 
 # =========================== GRAPHICAL OUTPUTS ================================
 # 1. Functional maps -----------------------------------------------------------

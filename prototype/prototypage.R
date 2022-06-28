@@ -69,11 +69,16 @@ barplot(sum_y_hat, las = 2, cex.names = 0.5, col = alpha("blue",0.3), add = TRUE
 library(dendextend)
 library(vegan)
 
+# --- Removing uncertainty
+r0 <- stack(paste0(data.wd,"/features"))[[1]]
+mag_data0 <- apply(mag_data, c(1,3), mean)
+func_data0 <- apply(func_data, c(1,3), mean)
+
 # --- Calculate correlation matrix and clusterings
-cor_mat <- cor(mag_data, func_data, use = 'pairwise.complete.obs')
+cor_mat <- cor(mag_data0, func_data0, use = 'pairwise.complete.obs')
 func_clust <- hclust(dist(t(cor_mat)), method = "ward.D2")
 mag_clust <- hclust(dist(cor_mat), method = "ward.D2")
-mag_group <- cutree(mag_clust, k = 5)
+mag_group <- cutree(mag_clust, k = 6)
 
 # --- Compute list of taxo labels
 taxo_lab <- NULL
@@ -85,7 +90,7 @@ for(j in 1:length(mag_clust$labels)){
 }
 
 # --- Compute scale corresponding to each mag
-mag_scale <- apply(mag_data, 2, function(x) (x = sum(x, na.rm = TRUE)))
+mag_scale <- apply(mag_data0, 2, function(x) (x = sum(x, na.rm = TRUE)))
 
 # --- Color palette for labels
 taxo_pal <- colorRampPalette(col = rev(brewer.pal(10,"Spectral")))(length(unique(taxo_lab)))
@@ -127,9 +132,10 @@ for(j in 1:max(mag_group)){
 # --- Create mag group maps ?
 par(mfrow = c(3,2), mar = c(3,3,3,3))
 for(j in 1:max(mag_group)){
-  tmp <- mag_data[,which(mag_group[mag_clust$order] == j)] %>% 
+  tmp <- mag_data0[,which(mag_group[mag_clust$order] == j)] %>% 
     apply(1, sum)
   mag_r <- setValues(r0, tmp)
+  mag_r <- synchroniseNA(stack(r0, mag_r))[[-1]]
   plot(mag_r, col = pal, main = paste("group", j))
 }
 
