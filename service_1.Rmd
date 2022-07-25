@@ -1,0 +1,606 @@
+---
+title: "Service_1"
+author: "aschickele"
+date: "25/11/2021"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  word_document: default
+---
+
+# Demonstrator 2 - Notebook 2: Mapping the geographical distribution of plankton functional gene clusters using habitat prediction models
+
+**Authors:** A. Schickele, P. Debeljack, L. Guidi, S. Ayata, J.O. Irisson
+
+**Corresponding author/maintainer**: [alexandre.schickele\@imev-mer.fr](mailto:alexandre.schickele@imev-mer.fr){.email}
+
+# 1. Introduction
+
+Planktonic organisms and by extension the composition and genetic potential of plankton in a given geographical area is influenced by the environmental context. In this notebook, we provide a series of tools to explore the relationship between the abundance of plankton genes and the environmental context, in order to project the biogeography of key metabolic pathways and as yet unknown plankton genes.
+
+This notebook presents describes the entire modeling pipeline and codes. It is essentially designed for expert users with a strong genomic and modeling background. The codes are accessible from the BlueCloud infrastructure and may also be duplicated and modified locally.
+
+------------------------------------------------------------------------
+
+# 2. Data sources
+
+## 2.1. Environmental data
+
+First, we retrieved a large set of annual climatologies from World Ocean Atlas (<https://www.ncei.noaa.gov/products/world-ocean-atlas>) and CMEMS (<https://marine.copernicus.eu/>). These data encompasses the 2005 to 2017 period, at 1° x 1° resolution and on a geographical domain ranging from -180 to +180°E and -90 to +90°. The environmental variables included are:
+
+-   **AOU**: Apparent Oxygen Utilization
+
+-   **nitrate**: Nitrate concentration
+
+-   **o2sat**: Percent Oxygen Saturation
+
+-   **oxygen**: Dissolved oxygen concentration
+
+-   **phosphate**: Phosphate concentration
+
+-   **salinity**: Sea surface salinity
+
+-   **silicate**: Silicate concentration
+
+-   **temperature**: Sea surface temperature
+
+-   **MLD**: Mixed Layer Depth, calculated using the method from Boyer de Montégut (2004)
+
+-   **CHL**: Chlorophyll A concentration
+
+-   **ZE**: depth of the lower limit of the Euphotic Zone, calculated using the method from Lavigne et al. (2012)
+
+-   **bathymetry**: sea bottom bathymetry
+
+-   **distcoast**: calculated distance to the nearest coast
+
+For all environmental variables, we calculated the mean (`mean`), standard deviation (`sd`), median (`med`), mean average distance (`mad`), monthly minimum (`min`) and monthly maximum (`max`) over the 2005 - 2017 period. **These data are accessible in the BlueCloud dataspace from Jupyter Hub.**
+
+## 2.2. Genomic data
+
+Second, we use MetaGenomic data retrieved from the Marine Atlas of Tara Ocean Unigenes (MATOU) described in the Notebook 1. These data correspond to the number of reads (i.e. proxy of abundance) per genes and Tara Ocean station, for the surface and 0.8 to 5 µm organisms (i.e. pico-eukaryotes). To be able to explore the genomic diversity of plankton, the data are annotated as following:
+
+-   If possible, each gene is functionally annotated using the KEGG (Kyoto Encyclopedia of Genes and Genomes) framework: <https://www.genome.jp/kegg/pathway.html>. This correspond to a two-level annotation, i.e. the KEGG functional annotation, contained in KEGG metabolic pathways.
+
+-   Genes are grouped by similarity of sequences into clusters (i.e., **Connected Components; CC**), containing annotated genes (i.e. KEGG + pathways) and as yet unknown genes.
+
+In other words, we are able to model the biogeography of CCs related to a given metabolic pathways, and then the genes related to one of the CC. **These data are stored in a PostgreSQL database, accessed during the first step of the modeling pipeline.**
+
+------------------------------------------------------------------------
+
+# 3. **Service description**
+
+## 3.1. Framework structure
+
+### 3.1.1. Folders
+
+The files are structured in different folders as following:
+
+-   the root contains this document that serves as a master script for service 1
+
+-   the `/code` folder contains all scripts corresponding to each step of the R modeling framework
+
+-   the `/function` folder corresponds to custom function necessary during the R modeling framework
+
+-   the `/data` folder corresponds to temporary data file written during the modeling process
+
+### 3.1.2. Functions
+
+The code is structured in four modeling steps each of them using parameters stored in a config file : `00a_config.R`
+
+The latter contains the list of packages, functions and general parameters necessary for each step. More importantly, it contains the pathway to the pipeline root (`bluecloud.wd`) and where the environmental data are stored (`data.wd`). Because these parameters are called by each modeling steps, it is necessary to define them in the config file at first.
+
+Here is an example for a Jupyter Hub instance on BlueCloud, where the pipeline has been copied to `/home/jovyan/bluecloud` :
+
+-   First define the working directories according to:
+
+```{r}
+# --- Input / Output directories
+bluecloud_dir <- "/home/jovyan/"
+data_dir <- "/home/jovyan/dataspace/PlanktonGenomic_datasets/"
+```
+
+-   Once the paths are properly indicated in the config file, we can run the following command:
+
+```{r}
+setwd(bluecloud_dir)
+source("./code/00a_config.R")
+
+```
+
+The config file also contains parameters that may be modified by an expert user. They are already optimized for BlueCloud infrastructure, therefore we only recommend to modify them for local usage and when aware of the computing requirements:
+
+```{r}
+# --- Model specific parameters
+NBOOST <- 3000 # maximum number of boosting rounds
+N_FOLD <- 5 # number of k-fold cross validation runs
+
+NBOOTSTRAP <- 20 # number of bootstrap rounds for script 03
+```
+
+Once the general parameters are set, we can load the functions corresponding to each step as following:
+
+```{r}
+
+source("./code/01a_query_BC.R")
+source("./code/02a_model_param.R")
+source("./code/02b_model_eval.R")
+source("./code/03a_bootstrap_predict.R")
+```
+
+## 3.2. Selecting the genomic and environmental data
+
+### 3.2.1. General principle
+
+Now that we described the data accessible by the notebook, we can select which part to select as input for the model using the `query_data()` function. This first step sends a query to a PostgreSQL database that contains the genomic data described in section 2.2. as well as the environmental data corresponding to each TARA Ocean station. The `query_data()` function extracts:
+
+-   **Targets** (i.e., response variables in machine learning) corresponding to the genomic data (i) at the CC level (i.e., related to a user-defined list of enzymes), or (ii) at the gene level (i.e., related to a user-defined list of CCs).
+
+-   **Features** (i.e., explanatory variables in machine learning) defined as the environmental data at the necessary TARA Ocean stations corresponding to the selected genomic data.
+
+To limit the number of selected CCs or genes (i.e., targets) to a reasonable amount (e.g., 50) in comparison with the number of TARA Oceans stations, we perform a dimensional reduction:
+
+-   The dimensional reduction is performed using the Escoufier criteria, that selects the corresponding number of targets whose pattern across stations are the most representative of the target dataset variability. The latter are considered in the model.
+
+-   The targets that are not selected above, are related to their nearest selected neighbor in a multidimensional correspondence analysis space (i.e., the closest selected pattern). This information is used at the end of the pipeline to reconstruct projections of all targets (i.e., Escoufier selected and non-selected), therefore avoiding the loss of information in the final outputs.
+
+The `query_data()` function is called as following:
+
+```{r}
+
+query <- query_data(bluecloud.wd = bluecloud_dir,
+                    CC_id = NULL,
+                    KEGG_m = paste0("K",c("01601","01602","01595","00051","00028","00029","00814","14272",
+                                          "01006","14454","14455","00024","00025","00026","01610")),
+                    CLUSTER_SELEC = list(N_CLUSTERS = 50, MIN_GENES = 1, EXCLUSIVITY_R = 1),
+                    ENV_METRIC = c("mean","sd","dist","bathy"),
+                    relative = TRUE)
+```
+
+### 3.2.2. Inputs
+
+The function take as user-defined input parameters:
+
+-   `bluecloud.wd`: the location of the pipeline root. Accepts a pathway string if different than the pathway defined in the `00a_config.R` in section 3.1.3.
+
+-   `CC_id:` a string corresponding to a gene cluster (i.e., connected component; CC) from which we would like to model the corresponding genes, preferentially including as yet unknown genes. If set to `NULL`, the model will select gene clusters related to a list of enzyme ID (i.e., see `KEGG_m`). **This parameter is used for gene-level modelling.**
+
+-   `KEGG_m`: a string corresponding to the ID of the KEGG enzymes (KO) to select. The ID are available at [\<https://www.genome.jp/kegg/pathway.html>](https://www.genome.jp/kegg/pathway.html){.uri}. **This parameter is used for CC-level modelling.**
+
+-   `CLUSTER_SELECT`: a list of integers defining (i) the number of genes or gene clusters to model simultaneously, (ii) the minimum number of genes per gene cluster, (iii) and the minimum exclusivity rate per cluster (i.e., the percentage of genes per cluster related to the enzymes ID defined in `KEGG_m`). **This parameter is used for CC-level modelling.**
+
+-   `ENV_METRIC`: a vector of strings containing the environmental variables to include in the features. The strings correspond to the variable names or format described in section 2.1.
+
+-   `relative`: if `TRUE`, the targets are calculated as relative abundance between each clusters. This option is set to `TRUE` by default due to the nature of the metagenomic data.
+
+### 3.2.3. Outputs
+
+The function returns several outputs as a list in the working environment. In addition, `X.feather`, `Y.feather` and `CC_desc.feather` are also included as written tables in the `/data` folder. The output have the following format:
+
+-   **X**: *n-environmental variables x m-stations* table of environmental values, corresponding to the "**features**"
+
+-   **Y**: *k-clusters x m-stations* table of reads, corresponding to the "**targets**". Here, *k* corresponds to the user defined number of targets considered in the model (i.e., selected by the Escoufier criteria). To alleviate spurious model results, the reads are normalized per stations and re-scaled globally between 0 and 1. The latter will be referred as "**normalized abundances**".
+
+-   **Y0**: *k0-clusters x m-stations* table of reads. The same format as **Y**, with *k0* corresponding to all targets (i.e., prior to Escoufier selection).
+
+-   **e**: output of the Escoufier selection, including the ID of the selected targets and the explained variability.
+
+-   **CC_desc**: *k-targets x 15 columns* table containing the ID of the cluster or gene and a set of variables describing their characteristics (e.g., number of genes, size, unknown rate etc...), their taxonomic and functional annotation. The latter corresponds to all annotated gene functions contained in a given gene cluster. If the cluster only contains unknown gene functions, it will be annotated as NA.
+
+-   **nn_ca**: a dataframe describing the correspondence between Escoufier non-selected targets and their nearest Escoufier selected neighbor, including the position of the target in the previously described dataframe, their sum of reads and importance scale in the observed data. These information are used to reconstruct the outputs with all targets at the end of the pipeline.
+
+In addition, the size of the outputs (i.e. number of stations, targets and features) are printed in the console at the end of the query. If the query does not correspond to any clusters (e.g. no cluster found for a given enzyme ID), a message is printed in the console.
+
+## 3.3. Training the model
+
+### 3.3.1. General principle
+
+The machine learning algorithm used in this notebook is based on a Python library (MBTR; see <https://mbtr.readthedocs.io/en/latest/>) and performs multivariate gradient boosting (i.e. several target modeled at once). The underlying Python implementation is invisible to the user.
+
+In line with best practices in machine learning, the `X.feather` and `Y.feather` tables retrieved from section 3.2. are split between a **training set** and a **test set**. The latter is performed using *n*-fold cross-validation splits: i.e. the data are split in *n*-equal sized groups, *n*-models are trained on *n-1* splits, holding the last split for model evaluation only. The test split is different for each of the *n*-models.
+
+In order to select the best model, we tested different sets of hyperparameters, leading to one algorithm per cross-validation fold and set of hyperparameters. The quality of fit of each algorithm is measured by a loss function at each boosting round. **The best model is selected according to the hyperparameters and number of boosting round that produced the minimum loss averaged between all cross-validation folds.**
+
+The model training and hyperparameters selection is called using the `model_run()` function:
+
+```{r}
+
+run <- model_run(bluecloud.wd = bluecloud_dir,
+                 HYPERPARAMETERS = data.frame(LEARNING_RATE = c(5e-3, 5e-3, 5e-3, 5e-3),
+                                              N_Q = c(10, 10, 10, 10),
+                                              MEAN_LEAF = c(30, 40, 50, 60)),
+                 verbose = TRUE)
+```
+
+### **3.3.2. Inputs**
+
+This function uses the following user-defined input parameters:
+
+-   `bluecloud.wd`: the location of the pipeline root. Accepts a pathway string if different than the pathway defined in the `00a_config.R` in section 3.1.3.
+
+-   `HYPERPARAMETERS`: numeric dataframe of hyperparameters to be tested. With `LEARNING_RATE` numeric vector of learning rates to test, `N_Q` integer vector of quantiles to use for tree splitting, `MEAN_LEAF` : minimum number of data per leaf (i.e. after splitting). For more detailed information, see <https://mbtr.readthedocs.io/en/latest/mbtr.html#module-mbtr.mbtr>. The pre-defined hyperparameters in this example already correspond to optimal parameters for the model, for most `query_data()` results.
+
+-   `verbose`: if `TRUE`, a plot of the loss per boosting round and the best set of hyperparameters is displayed.
+
+Supplementary model input parameters can be found in the `00a_config.R` file as well as in the `mbtr_fit()` function within the function described here. **However, we do not recommend modifying these parameters unless you are familiar with the MBTR Python library and aware of the computing requirements.** Please note that depending on the number of boosting rounds, MBTR may take a few minutes to run (c.a. 10min for 1000 boosting rounds). A progress bar should be displayed in the console to inform the user.
+
+### **3.3.3. Outputs**
+
+The function returns two outputs, written as `m.pickle` and `HYPERPARAMETERS.feather` in the `/data`folder. The outputs are described hereafter:
+
+-   `m.pickle`: output file from the MBTR library corresponding to the selected model.
+
+-   `HYPERPARAMETERS.feather`: dataframe of the same format as `HYPERPARAMETERS` input. However, only the line corresponding to the best set of hyperparameters is kept. A supplementary column informing on the optimal boosting rounds has also been added.
+
+## 3.4. Evaluating the model
+
+### 3.4.1. General principle
+
+As described in the previous section, the performance of our select model is evaluated by using the test split corresponding to each cross-validation fold. In this step, we perform two evaluation metrics: i.e. r-squared (`R2`) and root mean squared error (`rmse`). For each cross-validation fold, these metrics compare the prediction of our model on `X_te.feather` (referred as "y_hat") with the true values written in `Y_te.feather`.
+
+To evaluate the performance of our selected model, we call the `model_eval()` function:
+
+```{r}
+
+eval <- model_eval(bluecloud.wd = bluecloud_dir,
+                   by_target = FALSE,
+                   var_importance = FALSE)
+```
+
+### 3.4.2. Inputs
+
+This function takes the following parameters as input:
+
+-   `bluecloud.wd`: the location of the pipeline root. Accepts a pathway string if different that the pathway defined in the `00a_config.R` in section 3.1.3.
+
+-   `by_target`: if `TRUE`, the `R2` and `rmse` are also calculated by target to identify disparities among target fit and which target(s) are the best fitted.
+
+-   `var_importance`: if `TRUE`, the importance of each environmental variable to describe the distribution of genomic data is computed. This is done by counting the number of times each variable is used to split the trees, rescaled by the corresponding loss variation related to each tree split. Please note that this features is time and computing intensive and should not be used by default for prototyping.
+
+The number of user-defined inputs is relatively limited as this function directly reads the `m.pickle`, `X_te.feather` and `Y_te.feather` on the disk.
+
+### 3.4.3. Outputs
+
+This function provides a series of graphical outputs and evaluation metrics listed below:
+
+-   Variable importance plot: this plot provides the importance of each environmental variable in explaining the relationship between environmental patterns and abundance of gene clusters.
+
+-   Prediction vs test set plot: for each target, this function provides a plot comparing the true test values (i.e. all `Y_te.feather`) of the targets and the model predictions on the test set (i.e. all `y_hat`).
+
+-   Evaluation metrics: as described in section 3.4.1., the average `R2` and `rmse` and the corresponding standard deviation between cross-validation folds are printed in the console.
+
+## 3.5. Spatial projections
+
+### 3.5.1. General principle
+
+Now that we selected the best hyperparameter and evaluated the corresponding MBTR model, we are still missing the spatial projections of the modeled response of targets to environmental patterns. In line with best practices in machine learning and biogeography, we need to project both the average environmental response and an estimation of its uncertainty.
+
+Therefore, this last step performs *m*-bootstrap round projections. At each round, the entire data (i.e. training and test sets) is randomly re-sampled with replacement. The *m*-projections are then represented by means of their average and standard deviation.
+
+The spatial projections are calculated by the `model_proj()` function:
+
+```{r}
+
+proj <- model_proj(bluecloud.wd = bluecloud_dir,
+                   data.wd = data_dir,
+                   ENV_METRIC = c("mean","sd","dist","bathy"))
+```
+
+Before describing the inputs and outputs of `model_proj()`, we need to understand how the underlying `colmat()` function works. In order to plot both average projection and uncertainty on the same plot, we required saturation-dependent color palettes, that are defined by:
+
+-   the color (i.e. chroma) , that represents the different abundance levels (e.g. red for low abundance levels, blue for high abundance levels)
+
+-   the color saturation, that represents the different uncertainty levels (i.e. lower color saturation reflects high uncertainty between bootstrap runs).
+
+The `colmat()` function therefore builds a *n*-color level x *m*-saturation level matrix, with a unique index corresponding to each *color x saturation* combination. The projections retrieved from `model_proj()` do not represent the cluster abundance or uncertainty but the combination of both through this *color x saturation* index.
+
+### 3.5.2. Inputs
+
+The `model_proj()` function reads the `X.feather`, `Y.feather` and `HYPERPARAMETERS.feather` files written in section 3.2.3 and 3.3.3. respectively. In addition, it takes as input the following user-defined parameters:
+
+-   `bluecloud.wd`: the location of the pipeline root. Accepts a pathway string if different that the pathway defined in the `00a_config.R` in section 3.1.3.
+
+-   `data.wd`: the location of the environmental data folder. Accepts a pathway string if different that the pathway defined in the `00a_config.R` in section 3.1.3.
+
+-   `ENV_METRIC`: a vector of strings containing the environmental variables to include in the features. The strings correspond to the variable names or format described in section 2.1. **To avoid spurious projections, please note that this parameter needs to contain the same variable names as in section 3.2.2. (i.e. the variables on which the model has been trained).**
+
+### 3.5.3. Outputs
+
+The `model_proj()` function provides a series of outputs stored in a list and necessary for graphical outputs. The output list has the following structure:
+
+-   `col_matrix`: a *n*-color level x *m*-saturation level matrix containing the corresponding color references
+
+-   `proj`: a raster stack with each layers containing the abundance x uncertainty projections for one target (i.e. gene cluster)
+
+-   `col`: a list of color vectors, each corresponding to the abundance x uncertainty index of one `proj$layer`. This output could be omitted and re-calculated from `col_matrix`, with unnecessary computing cost, however.
+
+-   `y_hat_m`: a *p-geographical pixel x t-target* abundance matrix averaged between the bootstrap runs. This table is used to calculate the spatial correlation between the abundance of each targets.
+
+-   `y_hat`: a *p-geographical pixel x t-target x m-bootstrap* abundance matrix. This table is used to represent the average pattern intensity and corresponding uncertainty across oceans.
+
+# 4. Graphical outputs
+
+To avoid unnecessary computing, the default graphical outputs of this notebook are provided by separate functions using the outputs described in section 3.5.3., namely `legend_proj()`, `map_proj()` and `cor_proj()`.
+
+## 4.1. Standard Escoufier-selected projections
+
+The code chunk below produces a pdf file in `./standard_outputs.pdf`, containing the projections of Escoufier-selected targets, their respective dominance in the observed data, their taxonomic and functional annotations as well as the ones from related non-selected targets. All projections are ordered by pattern similarities following a clustering.
+
+```{r}
+# 1. Do plot outputs & save ----------------------------------------------------
+# --- Create rescaled map values
+y_hat_m_rescaled <- apply(proj$y_hat_m, 2, function(x){x/max(x, na.rm = TRUE)})
+if(is.null(cc_id) == TRUE){colnames(y_hat_m_rescaled) <- query$CC_desc$CC[query$e$vr[1:min(length(query$e$vr),ncol(query$Y))]]
+} else {colnames(y_hat_m_rescaled) <- query$CC_desc$Genes[query$e$vr[1:min(length(query$e$vr),ncol(query$Y))]]}
+
+# --- Do spatial clustering ---
+tree <- hclust(as.dist(1-cor(y_hat_m_rescaled, use = "pairwise.complete.obs")), method = "ward.D2")
+tree_cut <- 8
+group <- cutree(tree, k = tree_cut)
+
+# --- Start PDF with clustering related plots
+pdf(paste0(bluecloud_dir, "/standard_outputs.pdf"))
+par(mfrow = c(2,1),  mar = c(3,11,3,11))
+barplot(rev(tree$height), ylab = "Euclidian distance", xlab = "Number of clusters", main = "Connected Component (CC) cutoff",
+        col = c(rep("black", tree_cut), rep("gray75", ncol(query$Y)-tree_cut)))
+abline(h = tree$height[length(tree$height)-tree_cut], col = "red")
+plot(tree, cex = 0.6, ylab= "Euclidian distance", main = "Connected Component (CC) dendrogram")
+abline(h = tree$height[length(tree$height)-(tree_cut-1)], col = "red")
+cor_proj(y_hat_m = y_hat_m_rescaled[,tree$order], targetNAME = tree$labels[tree$order])
+abline(h = match(1:tree_cut, group[tree$order])-0.5, v = match(1:tree_cut, group[tree$order])-0.5)
+legend_proj(col_matrix = proj$col_matrix)
+
+# --- Continue with map, labels and related nn_CC / nn_KO
+par(mfrow = c(4,2), mar=c(2,2,2,0))
+for(n in 1:min(length(query$e$vr),ncol(query$Y))){
+  map_proj(proj = proj$proj, 
+           col = proj$col, 
+           targetID = tree$order[n], 
+           targetNAME = tree$labels)
+  map_scale <- max(proj$y_hat_m[,tree$order[n]], na.rm = TRUE)
+  barplot(c(map_scale, rep(0, 9)), ylim = c(0,1), border = NA, col = "black",
+          main = "Description :")
+  abline(v = c(0.2,1.2))
+  title(main = "Scale :", adj = 0)
+  
+  linked_CC <- query$CC_desc$CC[query$e$vr][which(query$nn_ca$nn_CC == tree$labels[tree$order[n]])][-1] %>% 
+    paste(collapse = ",")
+  linked_KO <- query$CC_desc$kegg_ko[query$e$vr][which(query$nn_ca$nn_CC == tree$labels[tree$order[n]])][-1] %>% 
+    strsplit(",") %>% unlist() %>% unique() %>% paste(collapse = ",")
+  
+  text(x = rep(2,7), y = c(0.9,0.7,0.6,0.5,0.4,0.2,0.1), cex = 0.8, adj = c(0,1),
+       labels = c(paste("H. Clustering group:", group[tree$order][n]),
+                  paste("KOs:", query$CC_des$kegg_ko[query$e$vr[1:min(length(query$e$vr),ncol(query$Y))]][tree$order[n]]),
+                  paste("Unknown rate:", query$CC_desc$unknown_rate[query$e$vr[1:min(length(query$e$vr),ncol(query$Y))]][tree$order[n]]),
+                  paste("nn_CCs:", linked_CC),
+                  paste("nn_KOs:", linked_KO),
+                  paste("Class:", query$CC_desc$class[query$e$vr[1:min(length(query$e$vr),ncol(query$Y))]][tree$order[n]]),
+                  paste("Genus:", query$CC_desc$genus[query$e$vr[1:min(length(query$e$vr),ncol(query$Y))]][tree$order[n]])))
+}
+dev.off()
+
+```
+
+## 4.2. Specific outputs
+
+### 4.2.1. Parameter definition
+
+**This section is specific to CC-level modelling. The previous section contains the necessary outputs for gene-level modelling.**
+
+Before creating the outputs, we first need to define a set of parameters and tables to aggregate the projections by enzymes (i.e., that may have different KEGG IDs). Moreover, the outputs can be scaled or not with the sum of reads of the observed data:
+
+-   `scaled = TRUE`: the outputs are scaled by the sum of reads of the observed data. Therefore, this corresponds to the realised distributional patterns, i.e., including eventual taxonomic dominance in the raw data
+
+-   `scale = FALSE` : the outputs correspond to the potential distributional pattern, where taxonomic effects have been alleviated.
+
+Due to the different normalisations, the distributional patterns do not sum at 1 in a given geographical cell. Therefore, they have to be treated as patterns of relative abundances, with the highest values corresponding to their maximum intensity. However, no quantitative comparison between patterns are possible as their scale are not representing their real values.
+
+The output parameters in this example are defined as following:
+
+```{r}
+# --- Create factor table
+factor_raw <- list(query$CC_desc$kegg_module[query$e$vr],
+                   query$CC_desc$kegg_ko[query$e$vr],
+                   query$CC_desc$class[query$e$vr],
+                   query$CC_desc$mag[query$e$vr],
+                   query$CC_desc$phylum[query$e$vr])
+factor_names <- lapply(factor_raw, function(x){x <- gsub(x, pattern = " ", replacement = "") %>% 
+                                                     strsplit(split = ",") %>% 
+                                                     unlist() %>% unique()
+                                               if(length(which(x == "-" | x == "NA")) > 0){
+                                                  x <- x[-which(x == "-" | x == "NA")]
+                                               } else {x <-  x}
+                                              })
+factor_names[[2]] <- kegg_m[paste0("ko:",kegg_m)%in%factor_names[[2]]]
+
+# --- Defining the different maps to plot
+plot_list <- list(RUBISCO = "01601|01602",
+                  PEPC = "1595",
+                  GOT = "14454|14455",
+                  PEPCK = "01610",
+                  MDH_NAD = "00024|00025|00026",
+                  MDH_NADP = "00051",
+                  MDC_NADP = "00029",
+                  MDC_NAD = "00028",
+                  GPT_GGAT = "00814|14272",
+                  PEPDK = "1006")
+
+# --- Supplementary parameters parameters
+CC_desc_e <- query$CC_desc[query$e$vr,] %>% inner_join(query$nn_ca)
+r0 <- stack(paste0(data.wd,"/features"))[[1]]
+scaled <- TRUE
+
+proj_data <- apply(proj$y_hat, c(2,3), function(x){x = x/sum(x, na.rm = TRUE)}) 
+
+# --- Colors
+pal <- colorRampPalette(col = rev(brewer.pal(10,"Spectral")))(100)
+
+```
+
+This first section of code defined the following parameters:
+
+-   `factor_raw:` a list of factors corresponding to the raw functional and taxonomic annotation per CC
+
+-   `factor_names`: a list of the possible modality for each functional or taxonomic factor in factor_raw
+
+-   `plot_list`: a named list of enzymes and their corresponding KEGG KO id. This is used to defined the functional aggregations corresponding to each projections.
+
+-   `CC_desc_e`: the `CC_desc` dataframe ordered by Escoufier importance
+
+-   `r0`: the default raster background
+
+-   `proj_data`: a *p-geographical pixel x t-target x m-bootstrap* abundance matrix, rescaled between 0 and 1.
+
+-   `pal:` the color palette for pattern intensity
+
+### 4.2.2. Output preparation
+
+By using the above-mentioned parameters, we created several data tables that will be used for functional and taxonomic distributional pattern and composition outputs. The latter are generated using the following code:
+
+```{r}
+
+# =================== BUILDING FUNCTIONAL DATA & PROJECTIONS ==========================
+# 1. Initialize parameters -----------------------------------------------------
+func_data <- NULL
+func_r_pal <- list()
+
+col_matrix <- colmat(pal = colorRampPalette(rev(brewer.pal(10,"Spectral")))(100), value = 0,
+                     xlab = "Coef. Variation (%)", ylab = "Relative Abundance")
+
+# 2. Building data, rasters and profiles ---------------------------------------
+for(j in 1:length(plot_list)){
+  # --- Extract nearest neighbor data
+  id <- CC_desc_e$pos_nn_CC[which(str_detect(CC_desc_e$kegg_ko, plot_list[[j]])==TRUE)]
+  if(scaled == TRUE){scale_CC <- query$nn_ca$sum_CC[which(str_detect(CC_desc_e$kegg_ko, plot_list[[j]])==TRUE)]} else {scale_CC <- 1}
+  
+  # --- Building functional data
+  tmp <- apply(proj_data[,id,],c(1,3), function(x){x = x*scale_CC}) # re-scale by raw data if necessary
+  tmp <- apply(tmp, c(2,3), sum) # matrix transposed for some reasons...
+  
+  # --- Re-scaling the data between 0 and 1 now
+  tmp <- apply(tmp, 2, function(x) (x = x/max(x, na.rm = TRUE)))
+  tmp[tmp<0] <- 1e-10 # Negative values (i.e. NA later) are model artefact. 
+                      # Rescaled to infinite small positive to be considered as
+                      # 0 when using raster::cut() in bivarmap
+
+  # --- Save
+  func_data <- abind(func_data, tmp, along = 3)
+  
+  # --- Building functional raster and corresponding 3D color palette
+  r_m <- setValues(r0, apply(tmp, 1, function(x) (x = mean(x, na.rm = TRUE))))
+  r_cv <- setValues(r0, apply(tmp, 1, function(x) (x = cv(x, na.rm = TRUE))))
+  r_cv[r_cv > 100] <- 100
+  
+  tmp <- bivar_map(rasterx = r_cv, rastery = r_m, colormatrix = col_matrix, cutx = seq(0,100,1), cuty = seq(0,1,0.01))
+  
+  if(j==1){func_r <- tmp[[1]]} 
+  else {func_r <- stack(func_r, tmp[[1]])}
+  func_r_pal[[j]] <- tmp[[2]]
+}
+# --- Rename data matrix
+dimnames(func_data)[[3]] <- names(plot_list)
+
+# --- Synchronise NA and rename raster
+features <- stack(paste0(data.wd,"/features"))
+func_r <- synchroniseNA(stack(features[[1]], func_r))[[-1]]
+names(func_r) <- names(plot_list)
+
+# ============== BUILDING TAXONOMIC DATA =======================================
+# 1. Initialize parameters -----------------------------------------------------
+taxo_data <- NULL
+
+# 2. Building data, rasters and profiles ---------------------------------------
+for(j in 1:length(factor_names[[3]])){
+  # Extract taxonomic data
+  id <- CC_desc_e$pos_nn_CC[which(str_detect(CC_desc_e$class, factor_names[[3]][[j]])==TRUE)]
+  if(scaled == TRUE){scale_CC <- query$nn_ca$sum_CC[which(str_detect(CC_desc_e$class, factor_names[[3]][[j]])==TRUE)]} else {scale_CC <- 1}
+  
+  # Building taxonomic data
+  if(length(id) > 1){
+    tmp <- apply(proj_data[,id,], c(1,3), function(x){x = x*scale_CC})
+    tmp <- apply(tmp, c(2,3), sum) # matrix transposed for some reasons...
+  } else {
+    tmp <- proj_data[,id,]*scale_CC
+  } # if length ID > 1
+
+  taxo_data <- abind(taxo_data, tmp, along = 3)
+}
+dimnames(taxo_data)[[3]] <- factor_names[[3]]
+
+```
+
+The corresponding output tables are described as:
+
+-   `func_data`: a *p geographical cell x m bootstrap x f functions* table corresponding to the distributional pattern of enzymes or functions across bootstrap rounds and geographical cells.
+
+-   `func_r` : a raster stack corresponding to the projections of `func_data`, averaged across bootstrap rounds
+
+-   `taxo_data`: a *p geographical cell x m bootstrap x t taxonomic* annotations table corresponding to the distributional pattern of taxonomic annotations across bootstrap rounds and geographical cells.
+
+### 4.2.3. Functional projections
+
+Now that we have all necessary tables, aggregated by functions and taxonomic units, we can derive the corresponding projections, inter-function correlations and taxonomic compositions. The corresponding projections are generated by the following code, in a `pdf` file, `functional_map.pdf`or `functional_map_scaled.pdf` respectively to the `scaled = TRUE` or `FALSE` parameter above.
+
+```{r}
+# 1. Functional maps -----------------------------------------------------------
+r <- func_r
+
+if(scaled == TRUE){pdf(paste0(bluecloud_dir,"/Functional_map_scaled.pdf"))
+}else{pdf(paste0(bluecloud_dir, "/Functional_map.pdf"))}
+
+par(mfrow = c(4,3), mar = c(3,2,3,2))
+for(j in 1:length(plot_list)){
+  map_proj(proj = r, 
+           col = func_r_pal, 
+           targetID = j, 
+           targetNAME = names(plot_list))
+}
+legend_proj(col_matrix = col_matrix)
+dev.off()
+
+```
+
+Various inter-pattern correlation can be derived from these projections, including:
+
+-   inter-function correlation between their patterns
+
+-   functional x taxonomic correlations between distributional patterns
+
+-   corresponding dendrograms to cluster the functional and taxonomic pattern by biogeographical similarity
+
+All above mentioned outputs are available in the following code and save as a `pdf` file, `Correlation.pdf`or `Correlation_scaled.pdf`respectively to the `scaled = TRUE` or `FALSE` parameter above.
+
+```{r}
+
+# 2. Correlation plots ---------------------------------------------------------
+# --- Load additional libraries
+library(vegan)
+library(corrplot)
+
+if(scaled == TRUE){pdf(paste0(bluecloud_dir,"/output/", output_dir, "/Correlations_scaled.pdf"))
+}else{pdf(paste0(bluecloud_dir,"/output/", output_dir, "/Correlations.pdf"))}
+
+par(mfrow = c(2,2), mar = c(2,5,5,3))
+# --- Functional correlation
+func_similarity <- as.dist(cor(apply(func_data, c(1,3), mean), use = "pairwise.complete.obs"))
+corrplot(as.matrix(func_similarity), type = 'lower', diag = FALSE,
+          tl.cex = 1, tl.col =  "black", order = 'original')
+
+# --- Functional vs Taxonomic correlations
+cor_mat <- cor(apply(func_data, c(1,3), mean), apply(taxo_data, c(1,3), mean), use = 'pairwise.complete.obs')
+func_hclust <- hclust(dist(cor_mat), method = 'ward.D2')
+taxo_hclust <- hclust(dist(t(cor_mat)), method = 'ward.D2')
+cor_mat <- cor_mat[func_hclust$order, taxo_hclust$order]
+
+corrplot(as.matrix(cor_mat), diag = FALSE,
+         title = "Functional vs taxo composition similarity", tl.cex = 0.8, tl.col =  "black")
+
+par(mar = c(10,5,5,2))
+plot(as.dendrogram(func_hclust), main = "Functional dendrogram")
+plot(as.dendrogram(taxo_hclust), main = "Taxonomic dendrogram")
+
+dev.off()
+```
+
+------------------------------------------------------------------------

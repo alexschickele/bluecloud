@@ -220,7 +220,7 @@ plot_list <- list(RUBISCO = "01601|01602",
 # --- Supplementary parameters parameters
 CC_desc_e <- query$CC_desc[query$e$vr,] %>% inner_join(query$nn_ca)
 r0 <- stack(paste0(data.wd,"/features"))[[1]]
-scaled <- FALSE
+scaled <- TRUE
 
 proj_data <- apply(proj$y_hat, c(2,3), function(x){x = x/sum(x, na.rm = TRUE)}) 
 
@@ -348,7 +348,7 @@ par(mfrow = c(2,2), mar = c(2,5,5,3))
 # --- Functional correlation
 func_similarity <- as.dist(cor(apply(func_data, c(1,3), mean), use = "pairwise.complete.obs"))
 corrplot(as.matrix(func_similarity), type = 'lower', diag = FALSE,
-          tl.cex = 1, tl.col =  "black", order = 'FPC')
+          tl.cex = 1, tl.col =  "black", order = 'original')
 
 # --- Functional vs Taxonomic correlations
 cor_mat <- cor(apply(func_data, c(1,3), mean), apply(taxo_data, c(1,3), mean), use = 'pairwise.complete.obs')

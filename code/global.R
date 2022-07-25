@@ -9,5 +9,5 @@ source("02a_model_param.R")
 source("02b_model_eval.R")
 source("03a_bootstrap_predict.R")
 
-bluecloud_dir <- "/home/aschickele/workspace/bluecloud descriptor"
-data_dir <- "/home/aschickele/workspace/bluecloud descriptor/data"
+bluecloud_dir <- "/home/aschickele/workspace/bluecloud"
+data_dir <- "/home/aschickele/workspace/bluecloud/data"

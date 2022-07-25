@@ -51,7 +51,8 @@ mpartial <- function(object, train, pred.var, grid.resolution=10
 }
 
 # --- Defining the different maps to plot
-plot_list <- list(PPC = "1595",
+plot_list <- list(RUBISCO = "01601|01602",
+                  PPC = "1595",
                   GOT = "14454|14455",
                   PEPCK = "01610",
                   MDH_NAD = "00024|00025|00026",
@@ -109,10 +110,10 @@ for(i in 1:dim(X0)[2]){
   
   
 # --- Plot between 0 and 1 all together to better compare variables
-pal = brewer.pal(9, "Paired")
-if(scaled == TRUE){pdf(paste0(bluecloud_dir,"/output/", output_dir, "/PDP01_synthetic_scaled.pdf"))
-}else{pdf(paste0(bluecloud_dir,"/output/", output_dir, "/PDP01_synthetic.pdf"))}
-par(mfrow = c(3,3), mar = c(2,2,4,6))
+pal = c("black",brewer.pal(9, "Paired"))
+# if(scaled == TRUE){pdf(paste0(bluecloud_dir,"/output/", output_dir, "/PDP01_synthetic_scaled.pdf"))
+# }else{pdf(paste0(bluecloud_dir,"/output/", output_dir, "/PDP01_synthetic.pdf"))}
+# par(mfrow = c(3,3), mar = c(2,2,4,6))
 
 for(i in 1:dim(X_tr)[2]){
   for(j in 1:length(plot_list)){
@@ -144,7 +145,7 @@ for(i in 1:dim(X_tr)[2]){
     
   }
 } # i th feature
-dev.off()
+# dev.off()
 
 # --- Plot features for comparison
 pal <- colorRampPalette(col = rev(brewer.pal(10,"Spectral")))(100)
