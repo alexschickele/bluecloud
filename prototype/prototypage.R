@@ -1,4 +1,37 @@
 
+
+
+
+library(leaflet)
+library(raster)
+library(tidyverse)
+
+# marche po
+range_r <- getValues(proj$proj[[1]]) %>% range(na.rm = TRUE)
+
+value_r <- proj$proj[[1]] %>% 
+  getValues()
+value_r <- value_r[!is.na(value_r)] %>% 
+  sort()
+
+pal <- proj$col_matrix
+pal <- pal[value_r] %>% sort() %>% rev()
+
+leaflet() %>%
+  addRasterImage(proj$proj[[1]], colors = pal, opacity = 1)
+
+# marche
+pal <- proj$col[[1]]
+plot(proj$proj[[1]], col = pal)
+
+# autre manière de définir le vecteur de couleur à partir de la matrice de base:
+# i.e. une cellule = une valeur x incertitude; 
+# les valeurs du raster sont l'index de la matrice correspondant à la combinaison valeur x incertitude
+pal <- proj$col_matrix[range_r[1]:range_r[2]]
+
+
+
+
 # ==============================================================================
 # Uncertainty propagation in the aggregated models
 one <- runif(100, 0, 20)

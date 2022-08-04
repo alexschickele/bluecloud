@@ -1,14 +1,19 @@
 message("load global functions")
 
 library(shiny)
-library(shinybusy)
 library(shinyjs)
+library(shinythemes)
+library(leaflet)
+library(raster)
+library(tidyverse)
 
-bluecloud_dir <- "/home/aschickele/workspace/bluecloud"
-data_dir <- "/home/aschickele/workspace/bluecloud/data"
+bluecloud_dir <- bluecloud.dir <- "/home/aschickele/workspace/bluecloud"
+data_dir <- data.ir <- "/home/aschickele/workspace/bluecloud/data"
 
-source("00a_config.R")
-source("03a_bootstrap_predict.R") # for plot functions
+# source("00a_config.R")
+setwd(bluecloud_dir)
+source("./code/03a_bootstrap_predict.R") # for plot functions
+source("./function/bivarRasterPlot.R")
 
 # --- Loading data tables
 load(paste0(data_dir,"/shiny_data.RData"))
@@ -25,4 +30,7 @@ plot_list <- list(RUBISCO = "01601|01602",
                   MDC_NAD = "00028",
                   GPT_GGAT = "00814|14272",
                   PEPDK = "1006")
+
+# right CRS for leaflet
+crs(proj$proj) <- sp::CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
 

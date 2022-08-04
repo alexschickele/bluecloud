@@ -178,14 +178,15 @@ for(j in 1:length(plot_list)){
   scale_CC <- query$nn_ca$sum_CC[which(str_detect(CC_desc_e$kegg_ko, plot_list[[j]])==TRUE)]
   
   # --- Building functional data
-  tmp_scaled <- apply(proj_data[,id,],c(1,3), function(x){x = x*scale_CC}) # re-scale by raw data if necessary
-  tmp_unscaled <- apply(proj_data[,id,],c(1,3), function(x){x = x*1}) # re-scale by raw data if necessary
+  tmp_scaled <- apply(proj_data[,id,],c(1,3), function(x){x = x*scale_CC}) %>% # re-scale by raw data if necessary
+    apply(c(2,3), sum) %>% 
+    apply(2, function(x) (x = x/max(abs(x), na.rm = TRUE)))
+  
+  tmp_unscaled <- apply(proj_data[,id,],c(1,3), function(x){x = x*1}) %>% # re-scale by raw data if necessary
+    apply(c(2,3), sum) %>% 
+    apply(2, function(x) (x = x/max(abs(x), na.rm = TRUE)))
   
   tmp <- tmp_scaled-tmp_unscaled
-  tmp <- apply(tmp, c(2,3), sum) # matrix transposed for some reasons...
-  
-  # --- Re-scaling the data between -1 and 1 now
-  tmp <- apply(tmp, 2, function(x) (x = x/max(abs(x), na.rm = TRUE)))
   
   # --- Building functional raster and corresponding 3D color palette
   r_m <- setValues(r0, apply(tmp, 1, function(x) (x = mean(x, na.rm = TRUE))))

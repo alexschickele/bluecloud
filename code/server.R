@@ -18,13 +18,19 @@ server <- function(input, output) {
   output$legend_plot <- renderPlot({
     message(" --- plotting legend")
     legend_proj(col_matrix = proj$col_matrix)
+    if(input$plot_type=="diff"){
+      colmat_plot(proj$col_matrix, xlab = "Coef. Variation", ylab = "Relative Abundance Diff.")
+      axis(side = 1, at = seq(0,1,0.2), labels = seq(0,100,20))
+      axis(side = 2, at = seq(0,1,0.1), labels = seq(-1,1,0.2))
+    }
   }) # end output
   
   # --- Plotting aggregated map
   output$enzyme_plot <- renderPlot({
     message(" --- plotting aggregated map")
     enz_data <- list(r = enz_r(), pal = enz_pal())
-    plot(enz_data$r[[as.numeric(input$enz_name)]], col = enz_data$pal[[as.numeric(input$enz_name)]], legend = FALSE)
+    plot(enz_data$r[[as.numeric(input$enz_name)]], col = enz_data$pal[[as.numeric(input$enz_name)]], legend = FALSE,
+         main = "Enzyme projection")
   }) # end output
 
   # ========= CONNECTED COMPONENT LEVEL =============
@@ -56,19 +62,23 @@ server <- function(input, output) {
     barplot(map_scale, xlim = c(0,1), border = NA, col = "black", horiz = TRUE,
             main = "Scale :")
   }) # end output
-  
-  # --- Plot CC_level_map
-  output$CC_level_map <- renderPlot({
+
+  # --- Plot CC_level_map (OLD)
+  output$CC_level_map_OLD <- renderPlot({
     message("  --- plotting CC_level_map")
     tmp <- id_r()
     tmp <- tmp[input$CC_to_plot]
-    plot(proj$proj[[tmp]], col = proj$col[[tmp]], legend = FALSE)
+    
+    pal <- proj$col[[tmp]]
+    plot(proj$proj[[tmp]], col = pal, legend = FALSE, main = "Connected Component projection")
+    
   }) # end output
   
   # --- Add CC_desc
   output$CC_desc <- renderUI({
     tmp <- which(str_detect(CC_desc_e$kegg_ko, plot_list[[as.numeric(input$enz_name)]])==TRUE)[input$CC_to_plot]
-    HTML(paste("<u><b>Connected Component description:</b></u>", "<br/>"),
+    HTML("<br/>",
+         paste("<u><b>Connected Component description:</b></u>", "<br/>"),
          paste("<b>KEGG KO:</b>", CC_desc_e$kegg_ko[tmp], "<br/>"),
          paste("<b>Unknown rate:</b>", round(CC_desc_e$unknown_rate[tmp],2), "%","<br/>"),
          paste("<b>Taxonomic Class:</b>", CC_desc_e$class[tmp], "<br/>"),
