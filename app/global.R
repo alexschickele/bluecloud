@@ -7,17 +7,12 @@ library(leaflet)
 library(raster)
 library(tidyverse)
 
-bluecloud_dir <- bluecloud.dir <- "/home/aschickele/workspace/bluecloud"
-data_dir <- data.ir <- "/home/aschickele/workspace/bluecloud/data"
+bluecloud_dir <- bluecloud.dir <- "/home/aschickele/workspace/bluecloud/app"
 
-# source("00a_config.R")
+# --- Loading data tables and functions
 setwd(bluecloud_dir)
-source("./code/03a_bootstrap_predict.R") # for plot functions
-source("./function/bivarRasterPlot.R")
-
-# --- Loading data tables
-load(paste0(data_dir,"/shiny_data.RData"))
-CC_desc_e <- query$CC_desc[query$e$vr,] %>% inner_join(query$nn_ca)
+source("./app_function.R")
+load("./app_data.RData")
 
 # --- Defining the enzyme - KO correspondance
 plot_list <- list(RUBISCO = "01601|01602",

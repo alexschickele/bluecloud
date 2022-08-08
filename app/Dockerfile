@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y \
    
 RUN apt-get update && apt-get upgrade -y
 
-#R CRAN packages
+# R CRAN packages
 RUN R -e "install.packages(c('devtools'), repos='https://cran.r-project.org/')"
 RUN R -e "install.packages(c('XML'), repos='https://cran.r-project.org/')"
 RUN R -e "install.packages(c('shiny','shinydjs','shinythemes'), repos='https://cran.r-project.org/')"
@@ -25,6 +25,11 @@ RUN R -e "install.packages(c('raster'), repos='https://cran.r-project.org/', dep
 RUN R -e "install.packages(c('tidyverse'), repos='https://cran.r-project.org/', dependencies=TRUE)"
 RUN R -e "install.packages(c('leaflet'), repos='https://cran.r-project.org/', dependencies=TRUE)"
 
+# COPY DATA
+WORKDIR home/aschickele/workspace/bluecloud/app
+COPY app .
+
+# END
 EXPOSE 3838
 
 RUN apt-get install -y curl
