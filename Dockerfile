@@ -26,7 +26,7 @@ RUN R -e "install.packages(c('tidyverse'), repos='https://cran.r-project.org/', 
 RUN R -e "install.packages(c('leaflet'), repos='https://cran.r-project.org/', dependencies=TRUE)"
 
 # COPY DATA
-WORKDIR home/aschickele/workspace/bluecloud/app
+WORKDIR home/aschickele/workspace/bluecloud
 COPY app .
 
 # END
