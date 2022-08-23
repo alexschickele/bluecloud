@@ -58,7 +58,7 @@ bivar_map <- function(rasterx, rastery, colormatrix, cutx = NULL, cuty = NULL){
   } # end if
   z <- setValues(rasterx,colorid[cbind(getValues(splitx),getValues(splity))])
   col_plot <- colormatrix[min(getValues(z), na.rm = TRUE):max(getValues(z), na.rm = TRUE)]
-  
+
   return(list(z, col_plot))
 }
 

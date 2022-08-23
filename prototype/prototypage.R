@@ -1,6 +1,72 @@
 
 
+# ==============================================================================
+# Investigating the HEXANAUPLIA & co case
+# ==============================================================================
 
+# all classes tag
+unique(CC_desc_e$class)
+
+# look for one suspect
+suspect <- "Hexanauplia"
+id <- grep(pattern = suspect, CC_desc_e$class)
+CC_suspect <- CC_desc_e[id,]
+CC_suspect[c("CC", "class", "kegg_ko", "mag")]
+
+# look for the corresponding genes
+CC_id <- CC_suspect$CC
+db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/",FILTER,"_DB.sqlite"))
+
+query <- dbGetQuery(db, paste0("SELECT * FROM data WHERE CC LIKE '%",
+                               paste(CC_id, collapse = "%' OR CC LIKE '%"), "%'")) 
+
+
+
+
+
+
+
+# ==============================================================================
+# Which enzyme is detected in which taxa ?
+# ==============================================================================
+# Adapted to Nitrogen case for now
+
+# --- creating storage table
+enz_detect <- matrix(data = NA,
+                     nrow = length(kegg_m),
+                     ncol = length(factor_names[[3]]),
+                     dimnames = list(kegg_m, factor_names[[3]]))
+
+# --- iteratively filling up the table
+for(i in 1:nrow(enz_detect)){
+  for(j in 1:ncol(enz_detect)){
+    id <- CC_desc_e$pos_CC[which(str_detect(CC_desc_e$kegg_ko, kegg_m[i])==TRUE & str_detect(CC_desc_e$class, factor_names[[3]][j])==TRUE)]
+    scale <- CC_desc_e$sum_CC[id] %>% sum()
+    
+    if(length(id) != 0){enz_detect[i,j] <- scale}
+  
+  } # j col
+} # i row
+
+enz_detect <- enz_detect/max(enz_detect, na.rm = TRUE)
+
+# --- Plot
+par(mar = c(10,5,1,6))
+image(t(enz_detect), col = pal, axes = FALSE)
+box()
+
+axis(side = 1, at = seq(0,1, length.out = ncol(enz_detect)), labels = colnames(enz_detect), las = 2, cex.axis = 0.8)
+abline(v = seq(0.023,1.023, length.out = ncol(enz_detect)))
+
+axis(side = 2, at = seq(0,1, length.out = nrow(enz_detect)), labels = rownames(enz_detect), las = 2, cex.axis = 0.8)
+abline(h = seq(0.015,1.015, length.out = nrow(enz_detect)))
+
+axis(side = 4, at = c(0.07, 0.24, 0.5, 0.69, 0.88), labels = c("N. Transferases", "Ass. N. Red.", "Diss. N. Red.", "NH3 to Urea", "NH3 to GLU"), 
+     las = 2, tick = FALSE, cex.axis = 0.8)
+abline(h = c(0.14, 0.34, 0.63, 0.76), lwd = 4)
+
+# ==============================================================================
+# ==============================================================================
 
 library(leaflet)
 library(raster)

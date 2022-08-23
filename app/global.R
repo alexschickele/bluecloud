@@ -3,16 +3,15 @@ message("load global functions")
 library(shiny)
 library(shinyjs)
 library(shinythemes)
-library(leaflet)
 library(raster)
+library(virtualspecies)
+library(RColorBrewer)
+library(colorspace)
 library(tidyverse)
 
-bluecloud_dir <- bluecloud.dir <- "/home/aschickele/workspace/bluecloud/app"
-
 # --- Loading data tables and functions
-setwd(bluecloud_dir)
-source("./app_function.R")
-load("./app_data.RData")
+source("app_function.R")
+load("app_data.RData")
 
 # --- Defining the enzyme - KO correspondance
 plot_list <- list(RUBISCO = "01601|01602",

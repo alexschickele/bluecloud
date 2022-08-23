@@ -29,14 +29,14 @@ source(file = "./code/00a_config.R")
 db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/",FILTER,"_DB.sqlite"))
 
 # --- 1B. Create and open RPostgreSQL database on BlueCloud
-db <- dbConnect(
-  drv=PostgreSQL(),
-  host="postgresql-srv.d4science.org",
-  dbname="bluecloud_demo2",
-  user="bluecloud_demo2_writer",
-  password="toto",
-  port=5432
-)
+# db <- dbConnect(
+#   drv=PostgreSQL(),
+#   host="postgresql-srv.d4science.org",
+#   dbname="bluecloud_demo2",
+#   user="bluecloud_demo2_writer",
+#   password="toto",
+#   port=5432
+# )
 
 # --- 2. Open "clusters" and sort by n_genes
 taxo <- read_feather(paste0(bluecloud.wd, "/omic_data/CC_PFAM_taxo_80cutoff.feather")) %>% 
@@ -90,7 +90,7 @@ data <- tbl(db, "reads") %>%
   left_join(tbl(db, "locs"), by = "Station")
 copy_to(db, data, temporary = FALSE, overwrite = TRUE)
 dbSendQuery(db, "create index by_cluster on data (CC)")
-dbSendQuery(db, 'CREATE INDEX by_cluster ON public.data ("CC")')
+# dbSendQuery(db, 'CREATE INDEX by_cluster ON public.data ("CC")')
 
 # --- 6. Create cluster_sort and add "n_station", "sum_reads", "unknown_rate" to cluster_sort
 # /!\  created from "data" instead of "clusters" because data does not account for 0 reads genes
@@ -105,11 +105,11 @@ cluster_sort <- tbl(db, "data") %>%
   inner_join(tmp)  %>% 
   dplyr::group_by(CC, n_station, sum_reads) %>% 
   dplyr::summarise(n_genes = n_distinct(Genes), 
-                   # unknown_rate = sum(is.na(PFAMs))*100/n(), #NOT WORKING WITH PostgreSQL !!
+                   unknown_rate = sum(is.na(PFAMs))*100/n(), #NOT WORKING WITH PostgreSQL !!
                    .groups = "drop")
 copy_to(db, cluster_sort, temporary = FALSE, na.rm = TRUE)
 dbSendQuery(db, "create index by_cluster_sort on cluster_sort (CC)")
-dbSendQuery(db, 'CREATE INDEX by_cluster_sort ON public.cluster_sort ("CC")')
+# dbSendQuery(db, 'CREATE INDEX by_cluster_sort ON public.cluster_sort ("CC")')
 
 # --- 7. Add correspondence Cluster - KEGG_Pathway
 kegg_sort <- tbl(db, "data") %>% 
@@ -122,7 +122,7 @@ copy_to(db, kegg_sort, temporary = FALSE, na.rm = FALSE)
 # --- 8. Pre-calculate feature table from nearest non-NA values
 # To only query the station later and not extract during queries section
 X0 <- tbl(db, "locs") %>% collect()
-xy <- X0 %>% select(x = Longitude, y = Latitude)
+xy <- X0 %>% dplyr::select(x = Longitude, y = Latitude)
 
 features <- stack(paste0(bluecloud.wd,"/data/features")) %>% 
   readAll()

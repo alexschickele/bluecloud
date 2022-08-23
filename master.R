@@ -20,15 +20,19 @@ source("./code/03a_bootstrap_predict.R")
 MAX_CLUSTER <- 20
 
 # =========================== DEFINE PARAMETERS ================================
-kegg_p0 = c("C4","C4_RUBISCO", "N")
+kegg_p0 = c("C4","C4_RUBISCO", "N", "Iron")
 kegg_m0 = list(paste0("K",c("01595","00051","00028","00029","00814","14272","01006","14454","14455","00024","00025","00026","01610")),
                paste0("K",c("01601","01602","01595","00051","00028","00029","00814","14272","01006","14454","14455","00024","00025","00026","01610")),
-               paste0("K",c("00367","10534","00372","00360","00366","17877", #NR + NiR
-                            "01948","00611","01755", # Urea in and out to citrate
-                            "01915","00265","00264","00284")) # GS I to III)
+               paste0("K",c("02575","15576","15577","15578","15579", #NOx fix
+                            "00367","10534","00372","00360","00366","17877", # Ass
+                            "00370","00371","00374","02567","02568","00362","00363","03385","15876", # Diss
+                            "01948","00611","09065","01438", # Urea in
+                            "01915","00265","00264","00284","00260","15371","00261","00262")), # GS
+               paste0("K",c("02010","02011","02012"))
                )
 
 cluster_selec0 = list(c(50,1,1),
+                      c(50,1,1),
                       c(50,1,1),
                       c(50,1,1))
 
@@ -211,16 +215,29 @@ factor_names <- lapply(factor_raw, function(x){x <- gsub(x, pattern = " ", repla
 factor_names[[2]] <- kegg_m[paste0("ko:",kegg_m)%in%factor_names[[2]]]
 
 # --- Defining the different maps to plot
-plot_list <- list(RUBISCO = "01601|01602",
-                  PEPC = "1595",
-                  GOT = "14454|14455",
-                  PEPCK = "01610",
-                  MDH_NAD = "00024|00025|00026",
-                  MDH_NADP = "00051",
-                  MDC_NADP = "00029",
-                  MDC_NAD = "00028",
-                  GPT_GGAT = "00814|14272",
-                  PEPDK = "1006")
+# plot_list <- list(RUBISCO = "01601|01602",
+#                   PEPC = "1595",
+#                   GOT = "14454|14455",
+#                   PEPCK = "01610",
+#                   MDH_NAD = "00024|00025|00026",
+#                   MDH_NADP = "00051",
+#                   MDC_NADP = "00029",
+#                   MDC_NAD = "00028",
+#                   GPT_GGAT = "00814|14272",
+#                   PEPDK = "1006")
+# 
+plot_list <- list(Nrt = "02575",
+                  NrtABDC = "15576|15577|15578|15579",
+                  NR = "10534",
+                  NIT = "17877",
+                  NirA = "00366",
+                  NirB = "00362",
+                  CPS1 = "1948",
+                  OTC = "00611",
+                  argE = "01438",
+                  GLN = "1915",
+                  GLT = "00264|00265|00284",
+                  GDH = "00260|15371|00261|00262")
 
 # --- Supplementary parameters parameters
 CC_desc_e <- query$CC_desc[query$e$vr,] %>% inner_join(query$nn_ca)
@@ -244,6 +261,7 @@ col_matrix <- colmat(pal = colorRampPalette(rev(brewer.pal(10,"Spectral")))(100)
 for(j in 1:length(plot_list)){
   # --- Extract nearest neighbor data
   id <- CC_desc_e$pos_nn_CC[which(str_detect(CC_desc_e$kegg_ko, plot_list[[j]])==TRUE)]
+  if(length(id) == 1){id <- rep(id, 2)} # /!\ trick when only one CC
   if(scaled == TRUE){scale_CC <- query$nn_ca$sum_CC[which(str_detect(CC_desc_e$kegg_ko, plot_list[[j]])==TRUE)]} else {scale_CC <- 1}
   
   # --- Building functional data
