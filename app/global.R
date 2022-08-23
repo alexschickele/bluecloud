@@ -1,4 +1,4 @@
-message("load global functions")
+message("load global libraries")
 
 library(shiny)
 library(shinyjs)
@@ -9,9 +9,17 @@ library(RColorBrewer)
 library(colorspace)
 library(tidyverse)
 
+message("DONE - libraries")
+
+
 # --- Loading data tables and functions
+message(paste("Current directory:", getwd()))
+
 source("app_function.R")
+message("DONE - custom functions")
+
 load("app_data.RData")
+message("DONE - custom data")
 
 # --- Defining the enzyme - KO correspondance
 plot_list <- list(RUBISCO = "01601|01602",
