@@ -8,7 +8,7 @@
 unique(CC_desc_e$class)
 
 # look for one suspect
-suspect <- "Hexanauplia"
+suspect <- "Oomycota"
 id <- grep(pattern = suspect, CC_desc_e$class)
 CC_suspect <- CC_desc_e[id,]
 CC_suspect[c("CC", "class", "kegg_ko", "mag")]
@@ -20,8 +20,8 @@ db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/",FILTER,"_D
 query <- dbGetQuery(db, paste0("SELECT * FROM data WHERE CC LIKE '%",
                                paste(CC_id, collapse = "%' OR CC LIKE '%"), "%'")) 
 
-
-
+unique(query$Class)
+unique(query$KEGG_ko)
 
 
 
