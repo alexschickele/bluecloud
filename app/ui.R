@@ -38,32 +38,33 @@ ui <- fixedPage(theme = shinytheme("sandstone"),
           tabsetPanel(
             # --- Enzyme level tab
             tabPanel("Enzyme - level",
+                     plotOutput("enzyme_plot", height = "430px"),
                      fixedRow(
-                       splitLayout(cellWidths = c("580px", "200px"),
-                                   plotOutput("enzyme_plot", height = "350px"),
-                                   plotOutput("legend_plot", height = "250px"))
-                     ),
-                     HTML("<h5> <b> Description : </b> </h5>",
-                          "<h5> Distributional pattern of the selected C4-carbon concentration related enzyme. The uncertainty related to biogeographical projections, 
+                       column(width = 4, plotOutput("legend_plot", height = "250px")
+                              ),
+                       column(width = 7, HTML("<h5> <b> Description : </b> </h5>",
+                                              "<h5> Distributional pattern of the selected C4-carbon concentration related enzyme. The uncertainty related to biogeographical projections, 
                                 corresponding to algorithm and bootstrap-related variability, is included in the form of a 2D colour scale. 
                                 The number of Connected Components (CC) used to construct in each enzyme projection is indicated by the length of the slide bar. 
                                 </h5>")
-                     
+                              )
+                     ),
             ), # end enzyme level tab
             
             # --- CC level tab
             tabPanel("Connected component - level",
-                     plotOutput("CC_scale_plot", height = "150px", width = "450px"),
+                     plotOutput("CC_scale_plot", height = "100px"),
+                     plotOutput("CC_level_map_OLD", height = "430px"),
                      fixedRow(
-                       splitLayout(cellWidths = c("580px", "200px"),
-                                   plotOutput("CC_level_map_OLD", height = "350px"),
-                                   plotOutput("CC_legend_plot", height = "250px"))
-                     ),
-                     HTML("<h5> <b> Description : </b> </h5>",
-                          "<h5> Distributional pattern of the underlying Connected Component. The uncertainty related to biogeographical projections, 
+                       column(width = 4, plotOutput("CC_legend_plot", height = "250px")
+                              ),
+                       column(width = 7, HTML("<h5> <b> Description : </b> </h5>",
+                                              "<h5> Distributional pattern of the underlying Connected Component. The uncertainty related to biogeographical projections, 
                                 corresponding to algorithm and bootstrap-related variability, is included in the form of a 2D colour scale. The scale
                                 bar above refers to the connected component importance in the observed data (i.e., in terms of relative abundance).
-                                </h5>"),
+                                </h5>")
+                              )
+                     ),
                      tags$hr(style="border-color: black;"),
                      htmlOutput("CC_desc")
             ), # CC enzyme level tab

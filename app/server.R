@@ -17,6 +17,7 @@ server <- function(input, output) {
   # --- Plotting color scale legend
   output$legend_plot <- renderPlot({
     message(" --- plotting legend")
+    par(mar = c(4,4,2,3))
     legend_proj(col_matrix = proj$col_matrix)
     if(input$plot_type=="diff"){
       colmat_plot(proj$col_matrix, xlab = "Coef. Variation", ylab = "Relative Abundance Diff.")
@@ -29,6 +30,7 @@ server <- function(input, output) {
   output$enzyme_plot <- renderPlot({
     message(" --- plotting aggregated map")
     enz_data <- list(r = enz_r(), pal = enz_pal())
+    par(mar = c(4,2,3,0))
     plot(enz_data$r[[as.numeric(input$enz_name)]], col = enz_data$pal[[as.numeric(input$enz_name)]], legend = FALSE,
          main = "Enzyme projection")
   }) # end output
@@ -51,6 +53,8 @@ server <- function(input, output) {
   # --- Plot CC_legend
   output$CC_legend_plot <- renderPlot({
     message(" --- plotting CC_legend")
+    
+    par(mar = c(4,4,2,3))
     legend_proj(col_matrix = proj$col_matrix)
   }) # end output
   
@@ -59,6 +63,8 @@ server <- function(input, output) {
     message(" --- plotting CC_scale")
     tmp <- CC_desc_e$sum_CC[which(str_detect(CC_desc_e$kegg_ko, plot_list[[as.numeric(input$enz_name)]])==TRUE)]
     map_scale <- tmp[input$CC_to_plot]/max(tmp)
+    
+    par(mar = c(2,2,3,5))
     barplot(map_scale, xlim = c(0,1), border = NA, col = "black", horiz = TRUE,
             main = "Scale :")
   }) # end output
@@ -70,6 +76,8 @@ server <- function(input, output) {
     tmp <- tmp[input$CC_to_plot]
     
     pal <- proj$col[[tmp]]
+    
+    par(mar = c(4,2,3,0))
     plot(proj$proj[[tmp]], col = pal, legend = FALSE, main = "Connected Component projection")
     
   }) # end output
