@@ -1,4 +1,5 @@
 message("load global libraries")
+message(paste("Current directory:", getwd()))
 
 library(shiny)
 library(shinyjs)
