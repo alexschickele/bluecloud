@@ -4,96 +4,81 @@
 # i.e. number of genes and station per clusters
 
 query_data <- function(bluecloud.wd = bluecloud_dir,
-                       CC_id = NULL,
+                       EXCLUDE = NULL,
                        KEGG_m = c(165:172,532),
                        CLUSTER_SELEC = list(N_CLUSTERS = 30, MIN_GENES = 5, EXCLUSIVITY_R = 1),
                        ENV_METRIC = c("mean","sd","dist","bathy"),
                        relative = TRUE){
   
   # --- For local database
-  db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/",FILTER,"_DB.sqlite"))
+  db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/",FILTER,"_DB_clean.sqlite"))
   
   # --- 1. Filter "data" by "cluster_sort"
-  if(is.null(CC_id)){
-    query <- dbGetQuery(db, paste0("SELECT CC FROM kegg_sort WHERE kegg_ko LIKE '%",
-                                  paste(KEGG_m, collapse = "%' OR kegg_ko LIKE '%"), "%'")) %>%
-      unique() %>% 
-      inner_join(tbl(db, "kegg_sort"), copy = TRUE) %>%
-      mutate(exclusivity = str_count(kegg_ko, paste(c("-","NA",KEGG_m), collapse = "|"))/n_ko) %>%
-      dplyr::group_by(CC) %>% 
-      dplyr::summarise(max_kegg = max(n_kegg, na.rm = TRUE), max_mod = max(n_mod, na.rm = TRUE), min_exl = min(exclusivity, na.rm = TRUE)) %>% 
-      filter(min_exl >= CLUSTER_SELEC$EXCLUSIVITY_R) %>%
-      inner_join(tbl(db, "cluster_sort"), copy = TRUE) %>% 
-      filter(n_genes >= !!CLUSTER_SELEC$MIN_GENES & n_station >= 10)
-    
-    query_check <- query
-    copy_to(db, query, overwrite = TRUE)
-    query <- tbl(db, "query")
-
-    target <- query %>% 
-      dplyr::select("CC") %>% 
-      inner_join(tbl(db, "data")) %>% 
-      dplyr::select(c("Genes", "CC", "readCount", "Station", "Longitude", "Latitude", "KEGG_ko","KEGG_Module","Description", "Phylum","Class", "Genus")) %>% 
-      collect()
-    target <- target %>% mutate(MAG = gsub("(.*_){2}(\\d+)_.+", "\\2", Genes))
-    copy_to(db, target, overwrite = TRUE)
-    target <- tbl(db, "target")
-    
-  } else {
-    target <- tbl(db, "data") %>% 
-      filter(CC == CC_id)
-  }
+  query <- dbGetQuery(db, paste0("SELECT CC FROM kegg_sort WHERE kegg_ko LIKE '%",
+                                paste(KEGG_m, collapse = "%' OR kegg_ko LIKE '%"), "%'")) %>%
+    unique() %>% 
+    inner_join(tbl(db, "kegg_sort"), copy = TRUE) %>%
+    mutate(exclusivity = str_count(kegg_ko, paste(c("-","NA",KEGG_m), collapse = "|"))/n_ko) %>%
+    dplyr::group_by(CC) %>% 
+    dplyr::summarise(max_kegg = max(n_kegg, na.rm = TRUE), max_mod = max(n_mod, na.rm = TRUE), min_exl = min(exclusivity, na.rm = TRUE)) %>% 
+    filter(min_exl >= CLUSTER_SELEC$EXCLUSIVITY_R) %>%
+    inner_join(tbl(db, "cluster_sort"), copy = TRUE) %>% 
+    filter(n_genes >= !!CLUSTER_SELEC$MIN_GENES & n_station >= 10)
   
+  query_check <- query
+  copy_to(db, query, overwrite = TRUE)
+  query <- tbl(db, "query")
+
+  target <- query %>% 
+    dplyr::select("CC") %>% 
+    inner_join(tbl(db, "data")) %>% 
+    dplyr::select(c("Genes", "CC", "readCount", "Station", "Longitude", "Latitude", "KEGG_ko","KEGG_Module","Description", "Phylum","Class", "Genus")) %>% 
+    collect()
+  
+  target <- target %>% mutate(MAG = gsub("(.*_){2}(\\d+)_.+", "\\2", Genes))  %>% 
+    dplyr::filter(!grepl(EXCLUDE, Class))
+  
+  copy_to(db, target, overwrite = TRUE)
+  
+  # --- 1b. Excluding taxa by expert knowledge if needed
+  target <- tbl(db, "target")
+
   # --- 2. Get cluster functional description
-  if(is.null(CC_id)){
-    CC_desc <- target %>% 
-      inner_join(tbl(db, "cluster_sort")) %>% 
-      collect() %>% 
-      group_by(CC, unknown_rate) %>% 
-      summarise(kegg_ko = paste(unique(KEGG_ko), collapse = ", "),
-                kegg_module = paste(unique(KEGG_Module), collapse = ", "),
-                desc = paste(unique(Description), collapse = ", "),
-                phylum = paste(unique(Phylum), collapse = ", "),
-                class = paste(unique(Class), collapse = ", "),
-                genus = paste(unique(Genus), collapse = ", "),
-                mag = paste(unique(MAG), collapse = ", ")) %>% 
-      inner_join(query_check)
-  } else {
-    CC_desc <- target %>% 
-      select("Genes","KEGG_ko","KEGG_Module", "Description", "Class", "Genus") %>% 
-      distinct() %>% 
-      collect()
-    names(CC_desc) <- c("Genes","kegg_ko","kegg_module","desc","class","genus")
-  }
+
+  CC_desc <- target %>% 
+    inner_join(tbl(db, "cluster_sort")) %>% 
+    collect() %>% 
+    group_by(CC, unknown_rate) %>% 
+    summarise(kegg_ko = paste(unique(KEGG_ko), collapse = ", "),
+              kegg_module = paste(unique(KEGG_Module), collapse = ", "),
+              desc = paste(unique(Description), collapse = ", "),
+              phylum = paste(unique(Phylum), collapse = ", "),
+              class = paste(unique(Class), collapse = ", "),
+              genus = paste(unique(Genus), collapse = ", "),
+              mag = paste(unique(MAG), collapse = ", ")) %>% 
+    inner_join(query_check)
+    
   write_feather(CC_desc, path = paste0(bluecloud.wd,"/data/CC_desc.feather"))
 
   # --- 3. Reshape and normalize "data" by "sum_station"
-  if(is.null(CC_id)){
-    target <- target %>% 
-      group_by(CC, Station, Latitude, Longitude) %>% 
-      summarise(reads = sum(readCount), .groups = "drop") %>% 
-      pivot_wider(names_from = CC, values_from = reads) %>% 
-      left_join(tbl(db, "sum_station")) %>% 
-      mutate_at(.vars = vars(c(-Station, -Latitude, -Longitude, -sum_reads)), .funs = ~ . / sum_reads)
-  } else {
-    target <- target %>% 
-      group_by(Genes, Station, Latitude, Longitude) %>% 
-      summarise(reads = sum(readCount), .groups = "drop") %>% 
-      pivot_wider(names_from = Genes, values_from = reads) %>% 
-      left_join(tbl(db, "sum_station")) %>% 
-      mutate_at(.vars = vars(c(-Station, -Latitude, -Longitude, -sum_reads)), .funs = ~ . / sum_reads)
-  }
-  
+
+  target <- target %>% 
+    group_by(CC, Station, Latitude, Longitude) %>% 
+    summarise(reads = sum(readCount), .groups = "drop") %>% 
+    pivot_wider(names_from = CC, values_from = reads) %>% 
+    left_join(tbl(db, "sum_station")) %>% 
+    mutate_at(.vars = vars(c(-Station, -Latitude, -Longitude, -sum_reads)), .funs = ~ . / sum_reads)
+
   # --- 4. Selecting the clusters most representative of the variability
-    e <- target %>% 
-      dplyr::select(c(-Station, -Latitude, -Longitude, -sum_reads)) %>% 
-      collect() %>% 
-      escouf()
-    
-    target0 <- target %>% 
-      dplyr::select(c(Station, Latitude, Longitude, e$vr[1:length(e$vr)]+3)) # for Y0
-    target <- target %>% 
-      dplyr::select(c(Station, Latitude, Longitude, e$vr[1:min(length(e$vr),CLUSTER_SELEC$N_CLUSTERS)]+3))
+  e <- target %>% 
+    dplyr::select(c(-Station, -Latitude, -Longitude, -sum_reads)) %>% 
+    collect() %>% 
+    escouf()
+  
+  target0 <- target %>% 
+    dplyr::select(c(Station, Latitude, Longitude, e$vr[1:length(e$vr)]+3)) # for Y0
+  target <- target %>% 
+    dplyr::select(c(Station, Latitude, Longitude, e$vr[1:min(length(e$vr),CLUSTER_SELEC$N_CLUSTERS)]+3))
 
   # --- 5. Building the final feature table "X"
   X <- target %>% 

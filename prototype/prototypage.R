@@ -1,4 +1,30 @@
 
+# ==============================================================================
+# TARA Stations map
+# ==============================================================================
+
+# --- For local database
+db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/",FILTER,"_DB.sqlite"))
+
+# --- Collect data
+tara_station <- tbl(db, "sum_station") %>% 
+  inner_join(tbl(db, "locs")) %>% 
+  select(-sum_reads) %>% 
+  collect()
+
+features <- stack(paste0(data_dir, "/features"))
+
+# --- Plot
+library(maps)
+pal = colorRampPalette(brewer.pal(9,"Spectral"))(100) %>% rev()
+plot(features[["temperaturemean"]], col = pal)
+map("world", add = TRUE)
+points(x = tara_station$Longitude, y = tara_station$Latitude, pch = 19, cex = 0.8)
+
+# --- Barplots
+par(mfrow = c(2,1))
+hist(query$X$temperaturemean, breaks = 10, freq = TRUE, col = "gray50", xlab = "temperature")
+hist(query$X$oxygenmean, breaks = 10, freq = TRUE, col = "gray50", xlab = "oxygen")
 
 # ==============================================================================
 # Investigating the HEXANAUPLIA & co case

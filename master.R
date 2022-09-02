@@ -20,15 +20,14 @@ source("./code/03a_bootstrap_predict.R")
 MAX_CLUSTER <- 20
 
 # =========================== DEFINE PARAMETERS ================================
-kegg_p0 = c("C4","C4_RUBISCO", "N", "Iron")
-kegg_m0 = list(paste0("K",c("01595","00051","00028","00029","00814","14272","01006","14454","14455","00024","00025","00026","01610")),
+kegg_p0 = c("C4_RUBISCO_clean","C4_RUBISCO", "N", "Iron")
+kegg_m0 = list(paste0("K",c("01601","01602","01595","00051","00028","00029","00814","14272","01006","14454","14455","00024","00025","00026","01610")),
                paste0("K",c("01601","01602","01595","00051","00028","00029","00814","14272","01006","14454","14455","00024","00025","00026","01610")),
                paste0("K",c("02575","15576","15577","15578","15579", #NOx fix
                             "00367","10534","00372","00360","00366","17877", # Ass
                             "00370","00371","00374","02567","02568","00362","00363","03385","15876", # Diss
                             "01948","00611","09065","01438", # Urea in
-                            "01915","00265","00264","00284","00260","15371","00261","00262")), # GS
-               paste0("K",c("02010","02011","02012"))
+                            "01915","00265","00264","00284","00260","15371","00261","00262"))# GS
                )
 
 cluster_selec0 = list(c(50,1,1),
@@ -39,12 +38,12 @@ cluster_selec0 = list(c(50,1,1),
 for(p in 1:length(kegg_p0)){
   kegg_p = kegg_p0[p]
   kegg_m = kegg_m0[[p]]
-  cc_id = NULL
+  exclude = "New_MAST-4|Oomycota"
   cluster_selec = cluster_selec0[[p]]
   env_metric = c("mean","sd")
   relative = TRUE
   
-  output_dir <- paste0(kegg_p, "_", cc_id, "_", 
+  output_dir <- paste0(kegg_p, "_", exclude, "_", 
                        paste(cluster_selec, collapse = "_"), "_",
                        paste(env_metric, collapse = "_"), "_",
                        if(relative==TRUE){"rel"} else {"abs"})
@@ -68,7 +67,7 @@ for(p in 1:length(kegg_p0)){
   
   # 1. Query data, synthetic cluster plot & save ---------------------------------
   query <- query_data(bluecloud.wd = bluecloud_dir,
-                      CC_id = cc_id,
+                      EXCLUDE = exclude,
                       KEGG_m = kegg_m,
                       CLUSTER_SELEC = list(N_CLUSTERS = cluster_selec[1], MIN_GENES = cluster_selec[2], EXCLUSIVITY_R = cluster_selec[3]),
                       ENV_METRIC = c(env_metric),
@@ -110,7 +109,7 @@ for(p in 1:length(kegg_p0)){
   
   # 2. Run model & save ----------------------------------------------------------
   run <- model_run(bluecloud.wd = bluecloud_dir,
-                   HYPERPARAMETERS = data.frame(LEARNING_RATE = c(1e-2, 1e-2, 1e-2, 1e-2),
+                   HYPERPARAMETERS = data.frame(LEARNING_RATE = c(5e-3, 5e-3, 5e-3, 5e-3),
                                                 N_Q = c(10, 10, 10, 10),
                                                 MEAN_LEAF = c(20, 30, 40, 50)),
                    verbose = TRUE)
@@ -145,8 +144,7 @@ for(p in 1:length(kegg_p0)){
 # 1. Do plot outputs & save ----------------------------------------------------
 # --- Create rescaled map values
 y_hat_m_rescaled <- apply(proj$y_hat_m, 2, function(x){x/max(x, na.rm = TRUE)})
-if(is.null(cc_id) == TRUE){colnames(y_hat_m_rescaled) <- query$CC_desc$CC[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]]
-} else {colnames(y_hat_m_rescaled) <- query$CC_desc$Genes[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]]}
+colnames(y_hat_m_rescaled) <- query$CC_desc$CC[query$e$vr[1:min(length(query$e$vr),cluster_selec[1])]]
 
 # --- Do spatial clustering ---
 tree <- hclust(as.dist(1-cor(y_hat_m_rescaled, use = "pairwise.complete.obs")), method = "ward.D2")
@@ -215,34 +213,34 @@ factor_names <- lapply(factor_raw, function(x){x <- gsub(x, pattern = " ", repla
 factor_names[[2]] <- kegg_m[paste0("ko:",kegg_m)%in%factor_names[[2]]]
 
 # --- Defining the different maps to plot
-# plot_list <- list(RUBISCO = "01601|01602",
-#                   PEPC = "1595",
-#                   GOT = "14454|14455",
-#                   PEPCK = "01610",
-#                   MDH_NAD = "00024|00025|00026",
-#                   MDH_NADP = "00051",
-#                   MDC_NADP = "00029",
-#                   MDC_NAD = "00028",
-#                   GPT_GGAT = "00814|14272",
-#                   PEPDK = "1006")
+plot_list <- list(RUBISCO = "01601|01602",
+                  PEPC = "1595",
+                  GOT = "14454|14455",
+                  PEPCK = "01610",
+                  MDH_NAD = "00024|00025|00026",
+                  MDH_NADP = "00051",
+                  MDC_NADP = "00029",
+                  MDC_NAD = "00028",
+                  GPT_GGAT = "00814|14272",
+                  PEPDK = "1006")
 # 
-plot_list <- list(Nrt = "02575",
-                  NrtABDC = "15576|15577|15578|15579",
-                  NR = "10534",
-                  NIT = "17877",
-                  NirA = "00366",
-                  NirB = "00362",
-                  CPS1 = "1948",
-                  OTC = "00611",
-                  argE = "01438",
-                  GLN = "1915",
-                  GLT = "00264|00265|00284",
-                  GDH = "00260|15371|00261|00262")
+# plot_list <- list(Nrt = "02575",
+#                   NrtABDC = "15576|15577|15578|15579",
+#                   NR = "10534",
+#                   NIT = "17877",
+#                   NirA = "00366",
+#                   NirB = "00362",
+#                   CPS1 = "1948",
+#                   OTC = "00611",
+#                   argE = "01438",
+#                   GLN = "1915",
+#                   GLT = "00264|00265|00284",
+#                   GDH = "00260|15371|00261|00262")
 
 # --- Supplementary parameters parameters
 CC_desc_e <- query$CC_desc[query$e$vr,] %>% inner_join(query$nn_ca)
 r0 <- stack(paste0(data.wd,"/features"))[[1]]
-scaled <- TRUE
+scaled <- FALSE
 
 proj_data <- apply(proj$y_hat, c(2,3), function(x){x = x/sum(x, na.rm = TRUE)}) 
 

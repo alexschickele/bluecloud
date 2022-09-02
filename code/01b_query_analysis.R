@@ -4,14 +4,14 @@
 # i.e. number of genes and station per clusters
 
 query_analysis <- function(bluecloud.wd = bluecloud_dir,
-                           CC_id = NULL,
+                           EXCLUDE = exclude,
                            KEGG_m = 165:172,
                            CLUSTER_SELEC = list(N_CLUSTERS = 30, MIN_GENES = 5, EXCLUSIVITY_R = 1),
                            ENV_METRIC = c("mean","sd","dist","bathy"),
                            relative = TRUE){
   
   # --- For local database
-  db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/",FILTER,"_DB.sqlite"))
+  db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/",FILTER,"_DB_clean.sqlite"))
   
   # --- 1. Filter "data" by "cluster_sort"
   query <- dbGetQuery(db, paste0("SELECT CC FROM kegg_sort WHERE kegg_ko LIKE '%",
@@ -32,7 +32,9 @@ query_analysis <- function(bluecloud.wd = bluecloud_dir,
     inner_join(tbl(db, "data")) %>% 
     dplyr::select(c("Genes", "CC", "readCount", "Station", "Longitude", "Latitude", "KEGG_ko","KEGG_Module","Description", "Class", "Genus")) %>% 
     collect()
-  target <- target %>% mutate(MAG = gsub("(.*_){2}(\\d+)_.+", "\\2", Genes))
+  target <- target %>% mutate(MAG = gsub("(.*_){2}(\\d+)_.+", "\\2", Genes)) %>% 
+    dplyr::filter(!grepl(EXCLUDE, Class))
+  
   copy_to(db, target, overwrite = TRUE)
   target <- tbl(db, "target")
 

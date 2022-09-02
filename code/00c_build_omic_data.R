@@ -26,7 +26,7 @@ source(file = "./code/00a_config.R")
 
 # --- 1. Create and open RSQLite database on Marie
 # unlink(paste0(bluecloud.wd, "/omic_data/",FILTER,"_DB.sqlite"))
-db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/",FILTER,"_DB.sqlite"))
+db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/",FILTER,"_DB_clean.sqlite")) # clean = no appendicularia and hexanauplia
 
 # --- 1B. Create and open RPostgreSQL database on BlueCloud
 # db <- dbConnect(
@@ -43,7 +43,8 @@ taxo <- read_feather(paste0(bluecloud.wd, "/omic_data/CC_PFAM_taxo_80cutoff.feat
   dplyr::select(c("Genes","Phylum","Class","Order","Family","Genus"))
 clusters <- read_feather(paste0(bluecloud.wd, "/omic_data/CC_80_withallannot.feather")) %>% 
   dplyr::select(c("Genes","CC", "COG_category","GOs", "KEGG_ko", "KEGG_Pathway", "KEGG_Module", "PFAMs", "Description")) %>% 
-  left_join(taxo)
+  left_join(taxo) %>% 
+  dplyr::filter(!grepl('Appendicularia|Hexanauplia', Class)) # Removing non-sense classes for GGMM fraction
 copy_to(db, clusters, temporary = FALSE, overwrite = TRUE)
 
 # --- 3. Open "reads" and filter according to n_genes
