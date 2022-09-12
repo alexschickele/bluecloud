@@ -15,18 +15,18 @@ setwd(bluecloud_dir)
 source("./code/00a_config.R")
 
 # =========================== DEFINE PARAMETERS ================================
-kegg_p0 = c("C4_RUBISCO")
+kegg_p0 = c("C4_RUBISCO_clean")
 kegg_m0 = list(paste0("K",c("01601","01602","01595","00051","00028","00029","00814","14272","01006","14454","14455","00024","00025","00026","01610")))
 cluster_selec0 = list(c(50,1,1))
 
 kegg_p = kegg_p0[1]
 kegg_m = kegg_m0[[1]]
-cc_id = NULL
+exclude = "New_MAST-4|Oomycota"
 cluster_selec = cluster_selec0[[1]]
 env_metric = c("mean","sd")
 relative = TRUE
 
-output_dir <- paste0(kegg_p, "_", cc_id, "_", 
+output_dir <- paste0(kegg_p, "_", exclude, "_", 
                      paste(cluster_selec, collapse = "_"), "_",
                      paste(env_metric, collapse = "_"), "_",
                      if(relative==TRUE){"rel"} else {"abs"})

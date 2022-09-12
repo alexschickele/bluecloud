@@ -240,7 +240,7 @@ plot_list <- list(RUBISCO = "01601|01602",
 # --- Supplementary parameters parameters
 CC_desc_e <- query$CC_desc[query$e$vr,] %>% inner_join(query$nn_ca)
 r0 <- stack(paste0(data.wd,"/features"))[[1]]
-scaled <- FALSE
+scaled <- TRUE
 
 proj_data <- apply(proj$y_hat, c(2,3), function(x){x = x/sum(x, na.rm = TRUE)}) 
 
