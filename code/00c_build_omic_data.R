@@ -26,17 +26,17 @@ source(file = "./code/00a_config.R")
 
 # --- 1. Create and open RSQLite database on Marie
 # unlink(paste0(bluecloud.wd, "/omic_data/",FILTER,"_DB.sqlite"))
-db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/",FILTER,"_DB_clean.sqlite")) # clean = no appendicularia and hexanauplia
+# db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/",FILTER,"_DB_clean.sqlite")) # clean = no appendicularia and hexanauplia
 
 # --- 1B. Create and open RPostgreSQL database on BlueCloud
-# db <- dbConnect(
-#   drv=PostgreSQL(),
-#   host="postgresql-srv.d4science.org",
-#   dbname="bluecloud_demo2",
-#   user="bluecloud_demo2_writer",
-#   password="toto",
-#   port=5432
-# )
+db <- dbConnect(
+  drv=PostgreSQL(),
+  host="postgresql-srv.d4science.org",
+  dbname="bluecloud_demo2",
+  user="bluecloud_demo2_writer",
+  password="toto",
+  port=5432
+)
 
 # --- 2. Open "clusters" and sort by n_genes
 taxo <- read_feather(paste0(bluecloud.wd, "/omic_data/CC_PFAM_taxo_80cutoff.feather")) %>% 
@@ -90,8 +90,8 @@ data <- tbl(db, "reads") %>%
   inner_join(tbl(db, "clusters"), by = "Genes") %>% 
   left_join(tbl(db, "locs"), by = "Station")
 copy_to(db, data, temporary = FALSE, overwrite = TRUE)
-dbSendQuery(db, "create index by_cluster on data (CC)")
-# dbSendQuery(db, 'CREATE INDEX by_cluster ON public.data ("CC")')
+# dbSendQuery(db, "create index by_cluster on data (CC)")
+dbSendQuery(db, 'CREATE INDEX by_cluster ON public.data ("CC")')
 
 # --- 6. Create cluster_sort and add "n_station", "sum_reads", "unknown_rate" to cluster_sort
 # /!\  created from "data" instead of "clusters" because data does not account for 0 reads genes
@@ -106,11 +106,11 @@ cluster_sort <- tbl(db, "data") %>%
   inner_join(tmp)  %>% 
   dplyr::group_by(CC, n_station, sum_reads) %>% 
   dplyr::summarise(n_genes = n_distinct(Genes), 
-                   unknown_rate = sum(is.na(PFAMs))*100/n(), #NOT WORKING WITH PostgreSQL !!
+                   # unknown_rate = sum(is.na(PFAMs))*100/n(), #NOT WORKING WITH PostgreSQL !!
                    .groups = "drop")
 copy_to(db, cluster_sort, temporary = FALSE, na.rm = TRUE)
-dbSendQuery(db, "create index by_cluster_sort on cluster_sort (CC)")
-# dbSendQuery(db, 'CREATE INDEX by_cluster_sort ON public.cluster_sort ("CC")')
+# dbSendQuery(db, "create index by_cluster_sort on cluster_sort (CC)")
+dbSendQuery(db, 'CREATE INDEX by_cluster_sort ON public.cluster_sort ("CC")')
 
 # --- 7. Add correspondence Cluster - KEGG_Pathway
 kegg_sort <- tbl(db, "data") %>% 
