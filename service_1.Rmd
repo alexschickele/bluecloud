@@ -65,7 +65,7 @@ Second, we use MetaGenomic data retrieved from the Marine Atlas of Tara Ocean Un
 
 -   Genes are grouped by similarity of sequences into clusters (i.e., **Connected Components; CC**), containing annotated genes (i.e. KEGG + pathways) and as yet unknown genes.
 
-In other words, we are able to model the biogeography of CCs related to a given metabolic pathways, and then the genes related to one of the CC. **These data are stored in a PostgreSQL database, accessed during the first step of the modeling pipeline.**
+In other words, we are able to model the biogeography of CCs related to a given metabolic pathways. **These data are stored in a PostgreSQL database, accessed during the first step of the modeling pipeline.**
 
 ------------------------------------------------------------------------
 
@@ -85,7 +85,24 @@ The files are structured in different folders as following:
 
 -   the `/data` folder corresponds to temporary data file written during the modeling process
 
-### 3.1.2. Functions
+### 3.1.2. Libraries
+
+The present framework relies on several Python and R libraries. The following should be already operational on the D4 Science infrastructure. In case it is needed, we provide the installation command hereafter :
+
+```{bash}
+
+cd /home/jovyan/function/MBTR
+pip install .
+
+```
+
+```{bash}
+
+cd
+R -e "install.packages(c('vegan','corrplot','FactoMineR','pastecs','raster','virtualspecies','abind','feather','reticulate','RColorBrewer','parallel','mvrsquared','tidyverse','RSQLite','RPostgreSQL'), repos='https://cran.r-project.org/', dependencies=TRUE)"
+```
+
+### 3.1.3. Functions
 
 The code is structured in four modeling steps each of them using parameters stored in a config file : `00a_config.R`
 
@@ -98,7 +115,7 @@ Here is an example for a Jupyter Hub instance on BlueCloud, where the pipeline h
 ```{r}
 # --- Input / Output directories
 bluecloud_dir <- "/home/jovyan/"
-data_dir <- "/home/jovyan/dataspace/PlanktonGenomic_datasets/"
+data_dir <- "/home/jovyan/data/"
 ```
 
 -   Once the paths are properly indicated in the config file, we can run the following command:
@@ -139,7 +156,7 @@ Now that we described the data accessible by the notebook, we can select which p
 
 -   **Features** (i.e., explanatory variables in machine learning) defined as the environmental data at the necessary TARA Ocean stations corresponding to the selected genomic data.
 
-To limit the number of selected CCs or genes (i.e., targets) to a reasonable amount (e.g., 50) in comparison with the number of TARA Oceans stations, we perform a dimensional reduction:
+To limit the number of selected CCs (i.e., targets) to a reasonable amount (e.g., 50) in comparison with the number of TARA Oceans stations, we perform a dimensional reduction:
 
 -   The dimensional reduction is performed using the Escoufier criteria, that selects the corresponding number of targets whose pattern across stations are the most representative of the target dataset variability. The latter are considered in the model.
 
@@ -150,7 +167,7 @@ The `query_data()` function is called as following:
 ```{r}
 
 query <- query_data(bluecloud.wd = bluecloud_dir,
-                    CC_id = NULL,
+                    EXCLUDE = "New_MAST-4|Oomycota",
                     KEGG_m = paste0("K",c("01601","01602","01595","00051","00028","00029","00814","14272",
                                           "01006","14454","14455","00024","00025","00026","01610")),
                     CLUSTER_SELEC = list(N_CLUSTERS = 50, MIN_GENES = 1, EXCLUSIVITY_R = 1),
@@ -164,7 +181,7 @@ The function take as user-defined input parameters:
 
 -   `bluecloud.wd`: the location of the pipeline root. Accepts a pathway string if different than the pathway defined in the `00a_config.R` in section 3.1.3.
 
--   `CC_id:` a string corresponding to a gene cluster (i.e., connected component; CC) from which we would like to model the corresponding genes, preferentially including as yet unknown genes. If set to `NULL`, the model will select gene clusters related to a list of enzyme ID (i.e., see `KEGG_m`). **This parameter is used for gene-level modelling.**
+-   `EXCLUDE:` a string corresponding to one or more (i.e. coerced) taxonomic class to be excluded from the analysis. For example, excludes lineages known for not performing the selected metabolic pathway, that could be selected due to the presence of generic transporters.
 
 -   `KEGG_m`: a string corresponding to the ID of the KEGG enzymes (KO) to select. The ID are available at [\<https://www.genome.jp/kegg/pathway.html>](https://www.genome.jp/kegg/pathway.html){.uri}. **This parameter is used for CC-level modelling.**
 
@@ -331,8 +348,7 @@ The code chunk below produces a pdf file in `./standard_outputs.pdf`, containing
 # 1. Do plot outputs & save ----------------------------------------------------
 # --- Create rescaled map values
 y_hat_m_rescaled <- apply(proj$y_hat_m, 2, function(x){x/max(x, na.rm = TRUE)})
-if(is.null(cc_id) == TRUE){colnames(y_hat_m_rescaled) <- query$CC_desc$CC[query$e$vr[1:min(length(query$e$vr),ncol(query$Y))]]
-} else {colnames(y_hat_m_rescaled) <- query$CC_desc$Genes[query$e$vr[1:min(length(query$e$vr),ncol(query$Y))]]}
+colnames(y_hat_m_rescaled) <- query$CC_desc$CC[query$e$vr[1:min(length(query$e$vr),ncol(query$Y))]]
 
 # --- Do spatial clustering ---
 tree <- hclust(as.dist(1-cor(y_hat_m_rescaled, use = "pairwise.complete.obs")), method = "ward.D2")
@@ -385,8 +401,6 @@ dev.off()
 ## 4.2. Specific outputs
 
 ### 4.2.1. Parameter definition
-
-**This section is specific to CC-level modelling. The previous section contains the necessary outputs for gene-level modelling.**
 
 Before creating the outputs, we first need to define a set of parameters and tables to aggregate the projections by enzymes (i.e., that may have different KEGG IDs). Moreover, the outputs can be scaled or not with the sum of reads of the observed data:
 
