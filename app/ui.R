@@ -8,35 +8,45 @@ ui <- fixedPage(theme = shinytheme("sandstone"),
       
         # --- Side bar
         sidebarPanel(width = 4,
-            selectInput("plot_type",
-                        label = "Type of enzyme-level plot:",
-                        choices = list(Potential = "unscaled", Realised = "scaled", Difference = "diff")),
-            p(tags$b("Potential"), "constructed from Connected Component-level where we alleviated the signal corresponding to their relative abundance in the observed data (i.e. alleviating taxonomic effect)"),
-            p(tags$b("Realised:"), "constructed from Connected Component-level where we considered the signal corresponding to their relative abundance in the observed data (i.e. considering taxonomic effect)")),
-            p(tags$b("Difference:"), "Potential - Realised")),
+                     # --- Plot type
+                     selectInput("plot_type",
+                                 label = "Type of enzyme-level plot:",
+                                 choices = list(Potential = "unscaled", Realised = "scaled", Difference = "diff")),
+                     p(tags$b("Potential"), "constructed from Connected Component-level where we alleviated the signal corresponding to their relative abundance in the observed data (i.e. alleviating taxonomic effect)"),
+                     p(tags$b("Realised:"), "constructed from Connected Component-level where we considered the signal corresponding to their relative abundance in the observed data (i.e. considering taxonomic effect)"),
+                     p(tags$b("Difference:"), "Potential - Realised"),
             
-            tags$hr(style="border-color: black;"),
-            selectInput("enz_name",
-                        label = "Select the enzyme to plot:",
-                        choices = as.list(setNames(c(1:10), names(plot_list)))),
-            p(tags$b("More information?"), tags$br(), "A detailed description of the above mentionned enzymes is available in", a(href="https://www.genome.jp/pathway/map00710", "the KEGG browser")),
+                     tags$hr(style="border-color: black;"),
+                     
+                     # --- Enzyme name
+                     selectInput("enz_name",
+                                 label = "Select the enzyme to plot:",
+                                 choices = as.list(setNames(c(1:10), names(plot_list)))),
+                     p(tags$b("More information?"), tags$br(), "A detailed description of the above mentionned enzymes is available in", a(href="https://www.genome.jp/pathway/map00710", "the KEGG browser")),
+                     
+                     tags$hr(style="border-color: black;"),
             
-            tags$hr(style="border-color: black;"),
-            # NB JOI: je pense que ce morceau devrait n'être que dans la tab correspondante. Tu peux mettre des bouts d'UI dans une tab, tout n'a pas à être dans cette colonne de gauche.
-            uiOutput("SliderWidget"),
-            p("The projection corresponding to the underlying Connected Components is available in the corresponding tab. They can be browsed using the slidebar above"),
-            
-            tags$hr(style="border-color: black;"),
-            h5("Going further")
-            p("You can generate maps for other functions using the PlanktonGenomics virtual lab of the ", a(href="https://blue-cloud.org", "Blue Cloud project") ". To do so, ", a(href="https://blue-cloud.d4science.org/web/planktongenomics", "register to the VLab"), " and ", a(href="?? ] -> link to the handbook PDF", "read the documentation"), ".")
-            
+                     # --- Conditional PFCs selection bar
+                     conditionalPanel(condition = "input.tabselected==2",
+                             uiOutput("SliderWidget"),
+                             p("The projection corresponding to the underlying Connected Components is available in the corresponding tab. They can be browsed using the slidebar above"),
+                             tags$hr(style="border-color: black;")),
+                     
+                     # --- Going further
+                     p(tags$b("Going further:"), tags$br(),
+                       "You can generate maps for other metabolic functions using the PlanktonGenomics virtual lab of the ", 
+                       a(href="https://blue-cloud.org", "Blue Cloud project"), ". To do so, ", 
+                       a(href="https://blue-cloud.d4science.org/web/planktongenomics", "register to the VLab"), " and ", 
+                       a(href="?? ] -> link to the handbook PDF"), "read the documentation", ".")
+
         ), # End Side Bar
 
         # --- Main panel
         mainPanel(
-          tabsetPanel(
+          tabsetPanel(id = "tabselected",
+                      
             # --- Enzyme level tab
-            tabPanel("Enzyme - level",
+            tabPanel("Enzyme - level",  value = 1,
                      plotOutput("enzyme_plot", height = "430px"),
                      fixedRow(
                        column(width = 4, plotOutput("legend_plot", height = "250px")
@@ -51,7 +61,7 @@ ui <- fixedPage(theme = shinytheme("sandstone"),
             ), # end enzyme level tab
             
             # --- CC level tab
-            tabPanel("Connected component - level",
+            tabPanel("Connected component - level", value = 2,
                      plotOutput("CC_scale_plot", height = "100px"),
                      plotOutput("CC_level_map_OLD", height = "430px"),
                      fixedRow(

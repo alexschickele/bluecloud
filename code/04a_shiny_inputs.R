@@ -215,6 +215,8 @@ names(func_r_diff) <- names(plot_list)
 #                           Save all in a RData
 # ==============================================================================
 
+proj <- list(proj$proj, proj$col_matrix, proj$col)
+
 save(query, eval, proj, 
      func_r_scaled, func_r_pal_scaled,
      func_r_unscaled, func_r_pal_unscaled,
