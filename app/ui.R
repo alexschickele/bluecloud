@@ -8,16 +8,6 @@ ui <- fixedPage(theme = shinytheme("sandstone"),
       
         # --- Side bar
         sidebarPanel(width = 4,
-                     # --- Plot type
-                     selectInput("plot_type",
-                                 label = "Type of enzyme-level plot:",
-                                 choices = list(Potential = "unscaled", Realised = "scaled", Difference = "diff")),
-                     p(tags$b("Potential"), "constructed from Connected Component-level where we alleviated the signal corresponding to their relative abundance in the observed data (i.e. alleviating taxonomic effect)"),
-                     p(tags$b("Realised:"), "constructed from Connected Component-level where we considered the signal corresponding to their relative abundance in the observed data (i.e. considering taxonomic effect)"),
-                     p(tags$b("Difference:"), "Potential - Realised"),
-            
-                     tags$hr(style="border-color: black;"),
-                     
                      # --- Enzyme name
                      selectInput("enz_name",
                                  label = "Select the enzyme to plot:",
@@ -25,8 +15,19 @@ ui <- fixedPage(theme = shinytheme("sandstone"),
                      p(tags$b("More information?"), tags$br(), "A detailed description of the above mentionned enzymes is available in", a(href="https://www.genome.jp/pathway/map00710", "the KEGG browser")),
                      
                      tags$hr(style="border-color: black;"),
-            
-                     # --- Conditional PFCs selection bar
+                     
+                     # --- Conditional enzyme-level plot type
+                     conditionalPanel(condition = "input.tabselected==1",
+                                      selectInput("plot_type",
+                                                  label = "Type of enzyme-level plot:",
+                                                  choices = list(Potential = "unscaled", Realised = "scaled", Difference = "diff")),
+                                      p(tags$b("Potential"), "constructed from Connected Component-level where we alleviated the signal corresponding to their relative abundance in the observed data (i.e. alleviating taxonomic effect)"),
+                                      p(tags$b("Realised:"), "constructed from Connected Component-level where we considered the signal corresponding to their relative abundance in the observed data (i.e. considering taxonomic effect)"),
+                                      p(tags$b("Difference:"), "Potential - Realised"),
+                                      
+                                      tags$hr(style="border-color: black;")),
+                     
+                     # --- Conditional CC-level selection bar
                      conditionalPanel(condition = "input.tabselected==2",
                              uiOutput("SliderWidget"),
                              p("The projection corresponding to the underlying Connected Components is available in the corresponding tab. They can be browsed using the slidebar above"),
@@ -37,7 +38,7 @@ ui <- fixedPage(theme = shinytheme("sandstone"),
                        "You can generate maps for other metabolic functions using the PlanktonGenomics virtual lab of the ", 
                        a(href="https://blue-cloud.org", "Blue Cloud project"), ". To do so, ", 
                        a(href="https://blue-cloud.d4science.org/web/planktongenomics", "register to the VLab"), " and ", 
-                       a(href="?? ] -> link to the handbook PDF"), "read the documentation", ".")
+                       a(href="https://data.d4science.net/3hxw", "read the documentation"), ".")
 
         ), # End Side Bar
 
