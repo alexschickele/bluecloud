@@ -14,7 +14,7 @@ library(vegan)
 bluecloud.wd = bluecloud_dir
 
 # --- Build table and query to get the MAG - taxa correspondence
-db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/",FILTER,"_DB.sqlite"))
+db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/",FILTER,"_DB_clean.sqlite"))
 
 tmp <- tbl(db, "data") %>% 
   dplyr::select(c("Genes", "Class")) %>% 
