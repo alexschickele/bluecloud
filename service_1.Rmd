@@ -17,9 +17,9 @@ output:
 
 # 1. Introduction
 
-Planktonic organisms and by extension the composition and genetic potential of plankton in a given geographical area is influenced by the environmental context. In this notebook, we provide a series of tools to explore the relationship between the abundance of plankton genes and the environmental context, in order to project the biogeography of key metabolic pathways and as yet unknown plankton genes.
+Planktonic organisms and by extension the composition and genetic potential of plankton in a given geographical area is influenced by the environmental context. In this notebook, we provide a series of tools to explore the relationship between the abundance of plankton genes and the environmental context, to project the biogeography of key metabolic pathways and yet unknown plankton genes.
 
-This notebook presents describes the entire modeling pipeline and codes. It is essentially designed for expert users with a strong genomic and modeling background. The codes are accessible from the BlueCloud infrastructure and may also be duplicated and modified locally.
+This notebook describes the entire modeling pipeline and codes. It is essentially designed for expert users with a strong genomic and modeling background. The codes are accessible from the Blue-Cloud infrastructure and may also be duplicated and modified locally.
 
 ------------------------------------------------------------------------
 
@@ -27,7 +27,7 @@ This notebook presents describes the entire modeling pipeline and codes. It is e
 
 ## 2.1. Environmental data
 
-First, we retrieved a large set of annual climatologies from World Ocean Atlas (<https://www.ncei.noaa.gov/products/world-ocean-atlas>) and CMEMS (<https://marine.copernicus.eu/>). These data encompasses the 2005 to 2017 period, at 1° x 1° resolution and on a geographical domain ranging from -180 to +180°E and -90 to +90°. The environmental variables included are:
+First, we retrieved a large set of annual climatologies from World Ocean Atlas (<https://www.ncei.noaa.gov/products/world-ocean-atlas>) and CMEMS (<https://marine.copernicus.eu/>). These data encompass the 2005 to 2017 period, at 1° x 1° resolution and on a geographical domain ranging from -180 to +180°E and -90 to +90°. The environmental variables included are:
 
 -   **AOU**: Apparent Oxygen Utilization
 
@@ -59,13 +59,13 @@ For all environmental variables, we calculated the mean (`mean`), standard devia
 
 ## 2.2. Genomic data
 
-Second, we use MetaGenomic data retrieved from the Marine Atlas of Tara Ocean Unigenes (MATOU) described in the Notebook 1. These data correspond to the number of reads (i.e. proxy of abundance) per genes and Tara Ocean station, for the surface and 0.8 to 5 µm organisms (i.e. pico-eukaryotes). To be able to explore the genomic diversity of plankton, the data are annotated as following:
+Second, we use Metagenomic data retrieved from the Marine Atlas of Tara Ocean Unigenes (MATOU) described in the Notebook 1. These data correspond to the number of reads (i.e. proxy of abundance) per genes and Tara Ocean station, for the surface and 0.8 to 5 µm organisms (i.e. picoeukaryotes). To explore the genomic diversity of plankton, the data are annotated as following:
 
--   If possible, each gene is functionally annotated using the KEGG (Kyoto Encyclopedia of Genes and Genomes) framework: <https://www.genome.jp/kegg/pathway.html>. This correspond to a two-level annotation, i.e. the KEGG functional annotation, contained in KEGG metabolic pathways.
+-   If possible, each gene is functionally annotated using the KEGG (Kyoto Encyclopedia of Genes and Genomes) framework: <https://www.genome.jp/kegg/pathway.html>. This corresponds to a two-level annotation, i.e. the KEGG functional annotation, contained in KEGG metabolic pathways.
 
--   Genes are grouped by similarity of sequences into clusters (i.e., **Connected Components; CC**), containing annotated genes (i.e. KEGG + pathways) and as yet unknown genes.
+-   Genes are grouped by similarity of sequences into clusters (i.e., **Connected Components; CC**), containing annotated genes (i.e. KEGG + pathways) and yet unknown genes.
 
-In other words, we are able to model the biogeography of CCs related to a given metabolic pathways. **These data are stored in a PostgreSQL database, accessed during the first step of the modeling pipeline.**
+In other words, we can model the biogeography of CCs related to a given metabolic pathways. **These data are stored in a PostgreSQL database, accessed during the first step of the modeling pipeline.**
 
 ------------------------------------------------------------------------
 
@@ -77,7 +77,7 @@ In other words, we are able to model the biogeography of CCs related to a given 
 
 The files are structured in different folders as following:
 
--   the root contains this document that serves as a master script for service 1
+-   the root contains this document that serves as a master script for service
 
 -   the `/code` folder contains all scripts corresponding to each step of the R modeling framework
 
@@ -126,7 +126,7 @@ source("./code/00a_config.R")
 
 ```
 
-The config file also contains parameters that may be modified by an expert user. They are already optimized for BlueCloud infrastructure, therefore we only recommend to modify them for local usage and when aware of the computing requirements:
+The config file also contains parameters that may be modified by an expert user. They are already optimized for Blue-Cloud infrastructure, therefore we only recommend modifying them for local usage and when aware of the computing requirements:
 
 ```{r}
 # --- Model specific parameters
@@ -150,9 +150,9 @@ source("./code/03a_bootstrap_predict.R")
 
 ### 3.2.1. General principle
 
-Now that we described the data accessible by the notebook, we can select which part to select as input for the model using the `query_data()` function. This first step sends a query to a PostgreSQL database that contains the genomic data described in section 2.2. as well as the environmental data corresponding to each TARA Ocean station. The `query_data()` function extracts:
+Now that we described the data accessible by the notebook, we can select which part to select as input for the model using the `query_BC()` function. This first step sends a query to a PostgreSQL database that contains the genomic data described in section 2.2. as well as the environmental data corresponding to each TARA Ocean station. The `query_BC()` function extracts:
 
--   **Targets** (i.e., response variables in machine learning) corresponding to the genomic data (i) at the CC level (i.e., related to a user-defined list of enzymes), or (ii) at the gene level (i.e., related to a user-defined list of CCs).
+-   **Targets** (i.e., response variables in machine learning) corresponding to the genomic data (i) at the CC level (i.e., related to a user-defined list of enzymes).
 
 -   **Features** (i.e., explanatory variables in machine learning) defined as the environmental data at the necessary TARA Ocean stations corresponding to the selected genomic data.
 
@@ -162,7 +162,7 @@ To limit the number of selected CCs (i.e., targets) to a reasonable amount (e.g.
 
 -   The targets that are not selected above, are related to their nearest selected neighbor in a multidimensional correspondence analysis space (i.e., the closest selected pattern). This information is used at the end of the pipeline to reconstruct projections of all targets (i.e., Escoufier selected and non-selected), therefore avoiding the loss of information in the final outputs.
 
-The `query_data()` function is called as following:
+The `query_BC()` function is called as following:
 
 ```{r}
 
@@ -177,23 +177,23 @@ query <- query_data(bluecloud.wd = bluecloud_dir,
 
 ### 3.2.2. Inputs
 
-The function take as user-defined input parameters:
+The function takes as user-defined input parameters:
 
 -   `bluecloud.wd`: the location of the pipeline root. Accepts a pathway string if different than the pathway defined in the `00a_config.R` in section 3.1.3.
 
 -   `EXCLUDE:` a string corresponding to one or more (i.e. coerced) taxonomic class to be excluded from the analysis. For example, excludes lineages known for not performing the selected metabolic pathway, that could be selected due to the presence of generic transporters.
 
--   `KEGG_m`: a string corresponding to the ID of the KEGG enzymes (KO) to select. The ID are available at [\<https://www.genome.jp/kegg/pathway.html>](https://www.genome.jp/kegg/pathway.html){.uri}. **This parameter is used for CC-level modelling.**
+-   `KEGG_m`: a string corresponding to the ID of the KEGG enzymes (KO) to select. The ID are available at [\<https://www.genome.jp/kegg/pathway.html>](https://www.genome.jp/kegg/pathway.html){.uri}.
 
--   `CLUSTER_SELECT`: a list of integers defining (i) the number of genes or gene clusters to model simultaneously, (ii) the minimum number of genes per gene cluster, (iii) and the minimum exclusivity rate per cluster (i.e., the percentage of genes per cluster related to the enzymes ID defined in `KEGG_m`). **This parameter is used for CC-level modelling.**
+-   `CLUSTER_SELECT`: a list of integers defining (i) the number of genes or gene clusters to model simultaneously, (ii) the minimum number of genes per gene cluster, (iii) and the minimum exclusivity rate per cluster (i.e., the percentage of genes per cluster related to the enzymes ID defined in `KEGG_m`).
 
 -   `ENV_METRIC`: a vector of strings containing the environmental variables to include in the features. The strings correspond to the variable names or format described in section 2.1.
 
--   `relative`: if `TRUE`, the targets are calculated as relative abundance between each clusters. This option is set to `TRUE` by default due to the nature of the metagenomic data.
+-   `relative`: if `TRUE`, the targets are calculated as relative abundance between each cluster. This option is set to `TRUE` by default due to the nature of the metagenomic data.
 
 ### 3.2.3. Outputs
 
-The function returns several outputs as a list in the working environment. In addition, `X.feather`, `Y.feather` and `CC_desc.feather` are also included as written tables in the `/data` folder. The output have the following format:
+The function returns several outputs as a list in the working environment. In addition, `X.feather`, `Y.feather` and `CC_desc.feather` are also included as written tables in the `/data` folder. The outputs have the following format:
 
 -   **X**: *n-environmental variables x m-stations* table of environmental values, corresponding to the "**features**"
 
@@ -203,9 +203,9 @@ The function returns several outputs as a list in the working environment. In ad
 
 -   **e**: output of the Escoufier selection, including the ID of the selected targets and the explained variability.
 
--   **CC_desc**: *k-targets x 15 columns* table containing the ID of the cluster or gene and a set of variables describing their characteristics (e.g., number of genes, size, unknown rate etc...), their taxonomic and functional annotation. The latter corresponds to all annotated gene functions contained in a given gene cluster. If the cluster only contains unknown gene functions, it will be annotated as NA.
+-   **CC_desc**: *k-targets x 15 columns* table containing the ID of the cluster and a set of variables describing their characteristics (e.g., number of genes, size, unknown rate etc...), their taxonomic and functional annotation. The latter corresponds to all annotated gene functions contained in a given gene cluster. If the cluster only contains unknown gene functions, it will be annotated as NA.
 
--   **nn_ca**: a dataframe describing the correspondence between Escoufier non-selected targets and their nearest Escoufier selected neighbor, including the position of the target in the previously described dataframe, their sum of reads and importance scale in the observed data. These information are used to reconstruct the outputs with all targets at the end of the pipeline.
+-   **nn_ca**: a dataframe describing the correspondence between Escoufier non-selected targets and their nearest Escoufier selected neighbor, including the position of the target in the previously described dataframe, their sum of reads and importance scale in the observed data. This information is used to reconstruct the outputs with all targets at the end of the pipeline.
 
 In addition, the size of the outputs (i.e. number of stations, targets and features) are printed in the console at the end of the query. If the query does not correspond to any clusters (e.g. no cluster found for a given enzyme ID), a message is printed in the console.
 
@@ -236,7 +236,7 @@ This function uses the following user-defined input parameters:
 
 -   `bluecloud.wd`: the location of the pipeline root. Accepts a pathway string if different than the pathway defined in the `00a_config.R` in section 3.1.3.
 
--   `HYPERPARAMETERS`: numeric dataframe of hyperparameters to be tested. With `LEARNING_RATE` numeric vector of learning rates to test, `N_Q` integer vector of quantiles to use for tree splitting, `MEAN_LEAF` : minimum number of data per leaf (i.e. after splitting). For more detailed information, see <https://mbtr.readthedocs.io/en/latest/mbtr.html#module-mbtr.mbtr>. The pre-defined hyperparameters in this example already correspond to optimal parameters for the model, for most `query_data()` results.
+-   `HYPERPARAMETERS`: numeric dataframe of hyperparameters to be tested. With `LEARNING_RATE` numeric vector of learning rates to test, `N_Q` integer vector of quantiles to use for tree splitting, `MEAN_LEAF` : minimum number of data per leaf (i.e. after splitting). For more detailed information, see <https://mbtr.readthedocs.io/en/latest/mbtr.html#module-mbtr.mbtr>. The pre-defined hyperparameters in this example already correspond to optimal parameters for the model, for most `query_BC()` results.
 
 -   `verbose`: if `TRUE`, a plot of the loss per boosting round and the best set of hyperparameters is displayed.
 
@@ -273,7 +273,7 @@ This function takes the following parameters as input:
 
 -   `by_target`: if `TRUE`, the `R2` and `rmse` are also calculated by target to identify disparities among target fit and which target(s) are the best fitted.
 
--   `var_importance`: if `TRUE`, the importance of each environmental variable to describe the distribution of genomic data is computed. This is done by counting the number of times each variable is used to split the trees, rescaled by the corresponding loss variation related to each tree split. Please note that this features is time and computing intensive and should not be used by default for prototyping.
+-   `var_importance`: if `TRUE`, the importance of each environmental variable to describe the distribution of genomic data is computed. This is done by counting the number of times each variable is used to split the trees, rescaled by the corresponding loss variation related to each tree split. Please note that this feature is time and computing intensive and should not be used by default for prototyping.
 
 The number of user-defined inputs is relatively limited as this function directly reads the `m.pickle`, `X_te.feather` and `Y_te.feather` on the disk.
 
@@ -306,7 +306,7 @@ proj <- model_proj(bluecloud.wd = bluecloud_dir,
 
 Before describing the inputs and outputs of `model_proj()`, we need to understand how the underlying `colmat()` function works. In order to plot both average projection and uncertainty on the same plot, we required saturation-dependent color palettes, that are defined by:
 
--   the color (i.e. chroma) , that represents the different abundance levels (e.g. red for low abundance levels, blue for high abundance levels)
+-   the color (i.e. chroma) , that represents the different abundance levels (e.g. red for high abundance levels, blue for low abundance levels)
 
 -   the color saturation, that represents the different uncertainty levels (i.e. lower color saturation reflects high uncertainty between bootstrap runs).
 
@@ -408,7 +408,7 @@ Before creating the outputs, we first need to define a set of parameters and tab
 
 -   `scale = FALSE` : the outputs correspond to the potential distributional pattern, where taxonomic effects have been alleviated.
 
-Due to the different normalisations, the distributional patterns do not sum at 1 in a given geographical cell. Therefore, they have to be treated as patterns of relative abundances, with the highest values corresponding to their maximum intensity. However, no quantitative comparison between patterns are possible as their scale are not representing their real values.
+Due to the different normalisations, the distributional patterns do not sum at 1 in a given geographical cell. Therefore, they have to be treated as patterns of relative abundances, with the highest values corresponding to their maximum intensity. However, no quantitative comparison between patterns are possible as their scale is not representing their real values.
 
 The output parameters in this example are defined as following:
 
@@ -458,7 +458,7 @@ This first section of code defined the following parameters:
 
 -   `factor_names`: a list of the possible modality for each functional or taxonomic factor in factor_raw
 
--   `plot_list`: a named list of enzymes and their corresponding KEGG KO id. This is used to defined the functional aggregations corresponding to each projections.
+-   `plot_list`: a named list of enzymes and their corresponding KEGG KO id. This is used to define the functional aggregations corresponding to each projections.
 
 -   `CC_desc_e`: the `CC_desc` dataframe ordered by Escoufier importance
 
@@ -583,7 +583,7 @@ Various inter-pattern correlation can be derived from these projections, includi
 
 -   corresponding dendrograms to cluster the functional and taxonomic pattern by biogeographical similarity
 
-All above mentioned outputs are available in the following code and save as a `pdf` file, `Correlation.pdf`or `Correlation_scaled.pdf`respectively to the `scaled = TRUE` or `FALSE` parameter above.
+All above mentioned outputs are available in the following code and saved as a `pdf` file, `Correlation.pdf`or `Correlation_scaled.pdf`respectively to the `scaled = TRUE` or `FALSE` parameter above.
 
 ```{r}
 
