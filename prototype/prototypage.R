@@ -78,18 +78,21 @@ enz_detect <- enz_detect/max(enz_detect, na.rm = TRUE)
 
 # --- Plot
 par(mar = c(10,5,1,6))
-image(t(enz_detect), col = pal, axes = FALSE)
+image(t(log(enz_detect)), col = pal, axes = FALSE)
 box()
 
 axis(side = 1, at = seq(0,1, length.out = ncol(enz_detect)), labels = colnames(enz_detect), las = 2, cex.axis = 0.8)
 abline(v = seq(0.023,1.023, length.out = ncol(enz_detect)))
 
 axis(side = 2, at = seq(0,1, length.out = nrow(enz_detect)), labels = rownames(enz_detect), las = 2, cex.axis = 0.8)
-abline(h = seq(0.015,1.015, length.out = nrow(enz_detect)))
+abline(h = seq(0.05,1.05, length.out = nrow(enz_detect)))
 
 axis(side = 4, at = c(0.07, 0.24, 0.5, 0.69, 0.88), labels = c("N. Transferases", "Ass. N. Red.", "Diss. N. Red.", "NH3 to Urea", "NH3 to GLU"), 
      las = 2, tick = FALSE, cex.axis = 0.8)
 abline(h = c(0.14, 0.34, 0.63, 0.76), lwd = 4)
+
+# --- Legend plot
+image(1:100, 1, as.matrix(1:100), col = pal)
 
 # ==============================================================================
 # ==============================================================================
