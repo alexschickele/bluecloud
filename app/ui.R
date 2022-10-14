@@ -37,8 +37,9 @@ ui <- fixedPage(theme = shinytheme("sandstone"),
                      p(tags$b("Going further:"), tags$br(),
                        "You can generate maps for other metabolic functions using the PlanktonGenomics virtual lab of the ", 
                        a(href="https://blue-cloud.org", "Blue Cloud project"), ". To do so, ", 
-                       a(href="https://blue-cloud.d4science.org/web/planktongenomics", "register to the VLab"), " and ", 
-                       a(href="https://data.d4science.net/3hxw", "read the documentation"), ".")
+                       a(href="https://blue-cloud.d4science.org/web/planktongenomics", "register to the VLab"), ", read the ", 
+                       a(href="https://data.d4science.net/qa7Z", "catalogue documentation"), ", and find corresponding files",
+                       a(href="https://data.d4science.net/3hxw", "here"), ".")
 
         ), # End Side Bar
 
