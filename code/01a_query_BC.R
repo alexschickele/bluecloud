@@ -16,8 +16,8 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
     drv=PostgreSQL(),
     host="postgresql-srv.d4science.org",
     dbname="bluecloud_demo2",
-    user="bluecloud_demo2_writer",
-    password="toto",
+    user="bluecloud_demo2_u",
+    password="6a26c54a05ec5dede958a370ca744a",
     port=5432
   )
 
@@ -27,18 +27,13 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
     dplyr::filter(grepl(pattern = tmp, kegg_ko)) %>% 
     select(CC) %>% 
     distinct() %>% 
-    collect() %>% 
-    inner_join(tbl(db, "kegg_sort"), copy = TRUE) %>%
-    mutate(exclusivity = str_count(kegg_ko, paste(c("-","NA",KEGG_m), collapse = "|"))/n_ko) %>%
+    inner_join(tbl(db, "kegg_sort")) %>%
     dplyr::group_by(CC) %>% 
-    dplyr::summarise(max_kegg = max(n_kegg, na.rm = TRUE), max_mod = max(n_mod, na.rm = TRUE), min_exl = min(exclusivity, na.rm = TRUE)) %>% 
-    filter(min_exl >= CLUSTER_SELEC$EXCLUSIVITY_R) %>%
+    dplyr::summarise(max_kegg = max(n_kegg, na.rm = TRUE), max_mod = max(n_mod, na.rm = TRUE)) %>% 
     inner_join(tbl(db, "cluster_sort"), copy = TRUE) %>% 
     filter(n_genes >= !!CLUSTER_SELEC$MIN_GENES & n_station >= 10)
   
-  query_check <- query
-  copy_to(db, query, temporary = FALSE, overwrite = TRUE)
-  query <- tbl(db, "query")
+  query_check <- query %>% collect()
   
   target <- query %>% 
     dplyr::select("CC") %>% 
@@ -46,18 +41,29 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
     dplyr::select(c("Genes", "CC", "readCount", "Station", "Longitude", "Latitude", "KEGG_ko","KEGG_Module","Description", "Phylum","Class", "Genus")) %>% 
     collect()
   
-  target <- target %>% mutate(MAG = gsub("(.*_){2}(\\d+)_.+", "\\2", Genes)) %>% 
-    dplyr::filter(!grepl(EXCLUDE, Class)) %>% 
-    group_by(CC, Station) %>%
-    mutate(Unknown_rate = sum(is.na(KEGG_ko))*100/n()) # defining unknown rate here instead of 00c_build_omic_data.R
-
-  copy_to(db, target, temporary = FALSE, overwrite = TRUE)
-  target <- tbl(db, "target")
+  # --- 1b. Doing exclusivity filtering in memory
+  query <- target %>% 
+    mutate(exclusivity = str_count(KEGG_ko, paste(c("-","NA",KEGG_m), collapse = "|"))/str_count(KEGG_ko, paste(c("-","NA","K"), collapse = "|"))) %>% 
+    dplyr::group_by(CC) %>% 
+    dplyr::summarise(min_exl = min(exclusivity, na.rm = TRUE)) %>% 
+    filter(min_exl >= CLUSTER_SELEC$EXCLUSIVITY_R) %>% 
+    inner_join(query_check)
   
+  tmp <- query %>% select("CC")
+  
+  target <- target %>% 
+    inner_join(tmp)
+  
+  # --- END bluecloud specificity, back to normal logic  
+  
+  target <- target %>% mutate(MAG = gsub("(.*_){2}(\\d+)_.+", "\\2", Genes)) %>% # getting MAGs
+    dplyr::filter(!grepl(EXCLUDE, Class)) %>% # Exclude non sense classes
+    group_by(CC, Station) %>%
+    mutate(Unknown_rate = sum(is.na(KEGG_ko))*100/n()) %>% collect() # defining unknown rate here instead of 00c_build_omic_data.R
+
   # --- 2. Get cluster functional description
   CC_desc <- target %>% 
-    inner_join(tbl(db, "cluster_sort")) %>% 
-    collect() %>% 
+    inner_join(tbl(db, "cluster_sort"), copy = TRUE) %>% 
     group_by(CC) %>% 
     summarise(unknown_rate = paste(unique(Unknown_rate), collapse = ", "),
               kegg_ko = paste(unique(KEGG_ko), collapse = ", "),
@@ -76,21 +82,16 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
     group_by(CC, Station, Latitude, Longitude) %>% 
     summarise(reads = sum(readCount), .groups = "drop") %>% 
     pivot_wider(names_from = CC, values_from = reads) %>% 
-    left_join(tbl(db, "sum_station")) %>% 
-    mutate_at(.vars = vars(c(-Station, -Latitude, -Longitude, -sum_reads)), .funs = ~ . / sum_reads) %>% 
-    collect()
+    left_join(tbl(db, "sum_station"), copy = TRUE) %>% 
+    mutate_at(.vars = vars(c(-Station, -Latitude, -Longitude, -sum_reads)), .funs = ~ . / sum_reads)
   
   # --- 3b. Security to put target back in the right order (needed for BlueCloud)
   id <- order(colnames(target[,4:ncol(target)]))
   target <- target[, c(1,2,3, id+3)]
   
-  copy_to(db, target, temporary = FALSE, overwrite = TRUE)
-  target <- tbl(db, "target")
-  
   # --- 4. Selecting the clusters most representative of the variability
   e <- target %>% 
     dplyr::select(c(-Station, -Latitude, -Longitude, -sum_reads)) %>% 
-    collect() %>% 
     escouf()
   
   target0 <- target %>% 
@@ -101,10 +102,9 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
   # --- 5. Building the final feature table "X"
   X <- target %>% 
     dplyr::select(Station) %>% 
-    inner_join(tbl(db, "X0")) %>% 
+    inner_join(tbl(db, "X0"), copy = TRUE) %>% 
     arrange(Station) %>% # security too re-arrange station names alphabetically
-    dplyr::select(contains(c(ENV_METRIC))) %>% 
-    collect()
+    dplyr::select(contains(c(ENV_METRIC)))
   
   write_feather(X, path = paste0(bluecloud.wd,"/data/X.feather"))
   
@@ -131,8 +131,7 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
   
   # --- 8. Extract the vector of station names
   ID <- target %>% 
-    dplyr::select(Station) %>% 
-    collect()
+    dplyr::select(Station)
   ID <- sort(ID$Station)
   write_feather(data.frame(Station = ID), path = paste0(bluecloud.wd,"/data/Station_ID.feather"))
   
