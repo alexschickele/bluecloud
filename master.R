@@ -20,26 +20,24 @@ source("./code/03a_bootstrap_predict.R")
 MAX_CLUSTER <- 20
 
 # =========================== DEFINE PARAMETERS ================================
-kegg_p0 = c("C4_RUBISCO_clean","C4_RUBISCO", "N", "N_use")
+kegg_p0 = c("C4_RUBISCO_clean","C4_RUBISCO", "N_strategy", "N_diatom")
 kegg_m0 = list(paste0("K",c("01601","01602","01595","00051","00028","00029","00814","14272","01006","14454","14455","00024","00025","00026","01610")),
                paste0("K",c("01601","01602","01595","00051","00028","00029","00814","14272","01006","14454","14455","00024","00025","00026","01610")),
-               paste0("K",c("02575","15576","15577","15578","15579", #NOx fix
-                            "00367","10534","00372","00360","00366","17877", # Ass
-                            "00370","00371","00374","02567","02568","00362","00363","03385","15876")), # Diss
-               paste0("K", c("05601","15864","17877","00926","01915","01480"))
+               paste0("K", c("02575","10534", "00367", "17877", "00366", "03320", "01915", "00264", "00265", "00284", "00262", "00261")),
+               paste0("K", c("05601", "17877", "00366", "00926", "01915", "01480"))
                )
 
 cluster_selec0 = list(c(50,1,1),
                       c(50,1,1),
-                      c(50,1,1),
-                      c(50,1,1))
+                      c(30,1,0.5),
+                      c(30,1,1))
 
 for(p in 1:length(kegg_p0)){
   kegg_p = kegg_p0[p]
   kegg_m = kegg_m0[[p]]
   exclude = "None"
   cluster_selec = cluster_selec0[[p]]
-  env_metric = c("mean","sd")
+  env_metric = c("max", "min")
   relative = TRUE
   
   output_dir <- paste0(kegg_p, "_", exclude, "_", 
@@ -223,12 +221,22 @@ plot_list <- list(RUBISCO = "01601|01602",
                   GPT_GGAT = "00814|14272",
                   PEPDK = "1006")
 
-plot_list <- list(Nrt = "02575",
-                  NrtABDC = "15576|15577|15578|15579",
-                  NR = "10534",
-                  NIT = "17877",
-                  NirA = "00366",
-                  NirB = "00362")
+plot_list <- list(NRT = "02575",
+                  NR = "10534|00367",
+                  NIT = "17877|00366",
+                  AMT = "03320",
+                  GS = "01915",
+                  NADH_GLT = "00264",
+                  NADPH_GLT = "00265",
+                  Fd_GLT = "00284",
+                  GDH1 = "00262",
+                  GDH2 = "00261")
+
+plot_list <- list(#HCP = "05601",
+                  NIR = "17877|00366",
+                  arcC = "00926",
+                  GS = "01915",
+                  speB = "01480")
 
 # --- Supplementary parameters parameters
 CC_desc_e <- query$CC_desc[query$e$vr,] %>% inner_join(query$nn_ca)
