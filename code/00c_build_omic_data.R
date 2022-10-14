@@ -26,17 +26,17 @@ source(file = "./code/00a_config.R")
 
 # --- 1. Create and open RSQLite database on Marie
 # unlink(paste0(bluecloud.wd, "/omic_data/",FILTER,"_DB.sqlite"))
-# db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/",FILTER,"_DB_clean.sqlite")) # clean = no appendicularia and hexanauplia
+db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/",FILTER,"_DB_clean.sqlite")) # clean = no appendicularia and hexanauplia
 
 # --- 1B. Create and open RPostgreSQL database on BlueCloud
-db <- dbConnect(
-  drv=PostgreSQL(),
-  host="postgresql-srv.d4science.org",
-  dbname="bluecloud_demo2",
-  user="bluecloud_demo2_writer",
-  password="toto",
-  port=5432
-)
+# db <- dbConnect(
+#   drv=PostgreSQL(),
+#   host="postgresql-srv.d4science.org",
+#   dbname="bluecloud_demo2",
+#   user="bluecloud_demo2_writer",
+#   password="toto",
+#   port=5432
+# )
 
 # --- 2. Open "clusters" and sort by n_genes
 taxo <- read_feather(paste0(bluecloud.wd, "/omic_data/CC_PFAM_taxo_80cutoff.feather")) %>% 
