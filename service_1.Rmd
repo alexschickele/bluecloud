@@ -11,7 +11,8 @@ output:
 
 # Demonstrator 2 - Notebook 2: Mapping the geographical distribution of plankton functional gene clusters using habitat prediction models
 
-**Authors:** A. Schickele, P. Debeljack, L. Guidi, S. Ayata, J.O. Irisson
+**Authors:** A. Schickele, P. Debeljack, S.D. Ayata, L. Bittner, E. Pelletier, L. Guidi\*, J.O. Irisson\*\
+\*Both authors contributed equally
 
 **Corresponding author/maintainer**: [alexandre.schickele\@imev-mer.fr](mailto:alexandre.schickele@imev-mer.fr){.email}
 
@@ -166,10 +167,12 @@ The `query_BC()` function is called as following:
 
 ```{r}
 
+kegg_m <- paste0("K",c("01601","01602","01595","00051","00028","00029","00814","14272",
+                                          "01006","14454","14455","00024","00025","00026","01610"))
+
 query <- query_data(bluecloud.wd = bluecloud_dir,
                     EXCLUDE = "New_MAST-4|Oomycota",
-                    KEGG_m = paste0("K",c("01601","01602","01595","00051","00028","00029","00814","14272",
-                                          "01006","14454","14455","00024","00025","00026","01610")),
+                    KEGG_m = kegg_m,
                     CLUSTER_SELEC = list(N_CLUSTERS = 50, MIN_GENES = 1, EXCLUSIVITY_R = 1),
                     ENV_METRIC = c("mean","sd","dist","bathy"),
                     relative = TRUE)
