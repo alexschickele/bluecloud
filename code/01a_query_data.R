@@ -11,7 +11,8 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
                        relative = TRUE){
   
   # --- For local database
-  db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/",FILTER,"_DB_clean.sqlite"))
+  # db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/",FILTER,"_DB_clean.sqlite"))
+  db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/Picoeuk_DB_clean.sqlite"))
   
   # --- 1. Filter "data" by "cluster_sort"
   query <- dbGetQuery(db, paste0("SELECT CC FROM kegg_sort WHERE kegg_ko LIKE '%",
@@ -32,7 +33,7 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
   target <- query %>% 
     dplyr::select("CC") %>% 
     inner_join(tbl(db, "data")) %>% 
-    dplyr::select(c("Genes", "CC", "readCount", "Station", "Longitude", "Latitude", "KEGG_ko","KEGG_Module","Description", "Phylum","Class", "Genus")) %>% 
+    dplyr::select(c("Genes", "CC", "readCount", "Station", "Filter","Longitude", "Latitude", "KEGG_ko","KEGG_Module","Description", "Phylum","Class", "Genus")) %>% 
     collect()
   
   target <- target %>% mutate(MAG = gsub("(.*_){2}(\\d+)_.+", "\\2", Genes))  %>% 
@@ -61,18 +62,27 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
   write_feather(CC_desc, path = paste0(bluecloud.wd,"/data/CC_desc.feather"))
 
   # --- 3. Reshape and normalize "data" by "sum_station"
-
   target <- target %>% 
-    group_by(CC, Station, Latitude, Longitude) %>% 
+    group_by(CC, Station, Filter, Latitude, Longitude) %>% 
     summarise(reads = sum(readCount), .groups = "drop") %>% 
     pivot_wider(names_from = CC, values_from = reads) %>% 
     left_join(tbl(db, "sum_station")) %>% 
-    mutate_at(.vars = vars(c(-Station, -Latitude, -Longitude, -sum_reads)), .funs = ~ . / sum_reads)
-
+    mutate_at(.vars = vars(c(-Station, -Filter, -Latitude, -Longitude, -sum_reads)), .funs = ~ . / sum_reads)
+  
+  # --- 3b. Average GGMM and GGZZ in common stations
+  target <- target %>% 
+    dplyr::select(-Filter, -sum_reads) %>% 
+    group_by(Station, Latitude, Longitude) %>% 
+    mutate(across(everything(), mean)) %>% 
+    ungroup() %>% 
+    distinct() %>% 
+    collect() %>% 
+    mutate(Station = str_pad(Station, 3, "0", side = "left")) %>% # Fix station number format back
+    dplyr::filter(!is.na(Latitude) & !is.na(Longitude)) # Filter unknown stations if needed
+  
   # --- 4. Selecting the clusters most representative of the variability
   e <- target %>% 
-    dplyr::select(c(-Station, -Latitude, -Longitude, -sum_reads)) %>% 
-    collect() %>% 
+    dplyr::select(c(-Station, -Latitude, -Longitude)) %>% 
     escouf()
   
   target0 <- target %>% 
@@ -82,9 +92,9 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
 
   # --- 5. Building the final feature table "X"
   X <- target %>% 
-    dplyr::select(Station) %>% 
-    inner_join(tbl(db, "X0")) %>% 
-    dplyr::select(contains(c(ENV_METRIC))) %>% 
+    dplyr::select(Station) %>%
+    inner_join(tbl(db, "X0"), copy = TRUE) %>%
+    dplyr::select(contains(c(ENV_METRIC))) %>%
     collect()
   
   write_feather(X, path = paste0(bluecloud.wd,"/data/X.feather"))
@@ -92,7 +102,6 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
   # --- 6. Building the final target table "Y0" for interpretation
   Y0 <- target0 %>% 
     dplyr::select(-Latitude, -Longitude) %>%
-    collect() %>% 
     arrange(Station) %>% 
     dplyr::select(-Station)
   Y0 <- Y0/max(Y0, na.rm = TRUE)
@@ -112,9 +121,12 @@ query_data <- function(bluecloud.wd = bluecloud_dir,
   
   # --- 8. Extract the vector of station names
   ID <- target %>% 
-    dplyr::select(Station) %>% 
-    collect()
-  ID <- sort(ID$Station)
+    dplyr::select(Station, Longitude, Latitude) %>% 
+    group_by(Station) %>% 
+    summarise(Longitude = mean(Longitude), Latitude = mean(Latitude)) %>% 
+    distinct()
+  ID <- ID[order(ID$Station),]
+  names(ID) <- c("Station","Longitude","Latitude")
   write_feather(data.frame(Station = ID), path = paste0(bluecloud.wd,"/data/Station_ID.feather"))
   
   # --- 9. Close connection

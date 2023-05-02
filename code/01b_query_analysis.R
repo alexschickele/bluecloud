@@ -11,41 +11,41 @@ query_analysis <- function(bluecloud.wd = bluecloud_dir,
                            relative = TRUE){
   
   # --- For local database
-  db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/",FILTER,"_DB_clean.sqlite"))
+  # db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/",FILTER,"_DB_clean.sqlite"))
+  db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/Picoeuk_DB_clean.sqlite"))
   
   # --- 1. Filter "data" by "cluster_sort"
   query <- dbGetQuery(db, paste0("SELECT CC FROM kegg_sort WHERE kegg_ko LIKE '%",
-                                   paste(KEGG_m, collapse = "%' OR kegg_ko LIKE '%"), "%'")) %>%
+                                 paste(KEGG_m, collapse = "%' OR kegg_ko LIKE '%"), "%'")) %>%
     unique() %>% 
     inner_join(tbl(db, "kegg_sort"), copy = TRUE) %>%
     mutate(exclusivity = str_count(kegg_ko, paste(c("-","NA",KEGG_m), collapse = "|"))/n_ko) %>%
     dplyr::group_by(CC) %>% 
     dplyr::summarise(max_kegg = max(n_kegg, na.rm = TRUE), max_mod = max(n_mod, na.rm = TRUE), min_exl = min(exclusivity, na.rm = TRUE)) %>% 
-    inner_join(tbl(db, "cluster_sort"), copy = TRUE) 
-    
+    inner_join(tbl(db, "cluster_sort"), copy = TRUE) %>% 
+    filter(n_genes >= !!CLUSTER_SELEC$MIN_GENES)
   query_check <- query
-  copy_to(db, query, overwrite = TRUE)
-  query <- tbl(db, "query")
-    
+  
   target <- query %>% 
-    dplyr::select("CC") %>% 
-    inner_join(tbl(db, "data")) %>% 
-    dplyr::select(c("Genes", "CC", "readCount", "Station", "Longitude", "Latitude", "KEGG_ko","KEGG_Module","Description", "Class", "Genus")) %>% 
-    collect()
-  target <- target %>% mutate(MAG = gsub("(.*_){2}(\\d+)_.+", "\\2", Genes)) %>% 
+    dplyr::select("CC", "min_exl") %>% 
+    inner_join(tbl(db, "data"), copy = TRUE) %>% 
+    dplyr::select(c("Genes", "CC", "readCount", "Station", "Filter","Longitude", "Latitude", "KEGG_ko","KEGG_Module","Description", "Phylum","Class", "Genus", "min_exl"))
+  
+  target <- target %>% mutate(MAG = gsub("(.*_){2}(\\d+)_.+", "\\2", Genes))  %>% 
     dplyr::filter(!grepl(EXCLUDE, Class))
   
-  copy_to(db, target, overwrite = TRUE)
+  # --- 1b. Excluding taxa by expert knowledge if needed
   target <- tbl(db, "target")
-
+  
   # --- 2. Get cluster functional description
+  
   CC_desc <- target %>% 
-    inner_join(tbl(db, "cluster_sort")) %>% 
-    collect() %>% 
+    inner_join(tbl(db, "cluster_sort"), copy = TRUE) %>% 
     group_by(CC, unknown_rate) %>% 
     summarise(kegg_ko = paste(unique(KEGG_ko), collapse = ", "),
               kegg_module = paste(unique(KEGG_Module), collapse = ", "),
               desc = paste(unique(Description), collapse = ", "),
+              phylum = paste(unique(Phylum), collapse = ", "),
               class = paste(unique(Class), collapse = ", "),
               genus = paste(unique(Genus), collapse = ", "),
               mag = paste(unique(MAG), collapse = ", ")) %>% 

@@ -3,11 +3,9 @@
 #' 
 #' @source MBTR python library
 #' 
-#' @param bluecloud.wd path to the bluecloud descriptor file
+#' @param bluecloud.wd path to the bluecloud folder containing the master script
 #' @param HYPERPARAMETERS dataframe of hyperparameter to test in the model
-#' @param N_FOLD number of cross validation fold to perform
-#' @param NBOOST number of maximum boosting round to perform
-#' @param MAX_CLUSTER maximum CPU clustering for parallel computing
+#' @param verbose TRUE or FALSE to silence or not the output in the console
 #' 
 #' @return a .mbtr object containing the trained model per hyperparameter and
 #' cross validation fold
@@ -18,21 +16,28 @@ model_run <- function(bluecloud.wd = bluecloud_dir,
                                                    MEAN_LEAF = c(20, 30, 40, 50)),
                       verbose = TRUE){
   
-  # --- Custom functions
+  # --- 1. Custom functions
+  # 1.1. Function to split a vector (e.g. station ID) in equal folds
   kfold <- function(x,n) split(x, cut(seq_along(x), n, labels = FALSE))
-  ma <- function(x, n = 10){stats::filter(x, rep(1 / n, n), sides = 2)}
-  
-  # --- Load data
+
+  # --- 2. Load data
   X0 <- read_feather(paste0(bluecloud.wd,"/data/X.feather"))
   N <- nrow(X0)
   Y0 <- read_feather(paste0(bluecloud.wd,"/data/Y.feather"))
 
-  # --- Initialize k-fold cross validation splits
+  # --- 3. Perform k-fold cross validation splits
+  # 3.1. Initialize the station names
   ID <- read_feather(paste0(bluecloud.wd,"/data/Station_ID.feather"))
-  id <- sample(x = seq(1:N), size = N, replace = FALSE)
+  names(ID) <- c("Station","Longitude","Latitude")
+  # 3.2. Perform splits according to the station number names
+  # One can also do random splits by randomizing the order of "id"
+  id <- 1:N
   FOLDS <- kfold(id,N_FOLD)
-  write_feather(ID[id,], path = paste0(bluecloud.wd,"/data/Station_FOLD.feather"))
+
+  # 3.3. Save the new station ID order
+  write_feather(ID[id,1], path = paste0(bluecloud.wd,"/data/Station_FOLD.feather"))
   
+  # 3.4. Create the different train and validation sets and save them in the data folder
   for (cv in 1:N_FOLD){
     X_tr <- as.data.frame(X0[(unlist(FOLDS[-cv])),])
     Y_tr <- as.data.frame(Y0[(unlist(FOLDS[-cv])),])
@@ -47,10 +52,12 @@ model_run <- function(bluecloud.wd = bluecloud_dir,
     write_feather(Y_val, paste0(bluecloud.wd,"/data/",cv,"_Y_val.feather"))
   }
   
-  # --- Parallel model fitting
+  # --- 4. Parallel model fitting
+  # 4.1. Load the cross validation and hyperparameter order
   cv <- rep(seq(1:N_FOLD),nrow(HYPERPARAMETERS))
   hp <- rep(seq(1:nrow(HYPERPARAMETERS)), each = N_FOLD)
   
+  # 4.2. Fit a model to each cv x hp combination
   m <- mcmapply(FUN=mbtr_fit, 
                 path=paste0(bluecloud.wd, "/data/", cv),
                 hp_id = as.character(hp),
@@ -67,7 +74,8 @@ model_run <- function(bluecloud.wd = bluecloud_dir,
                 USE.NAMES = FALSE,
                 mc.cores = min(c(MAX_CLUSTER, N_FOLD*nrow(HYPERPARAMETERS))))
   
-  # --- Plotting results
+  # --- 5. Hyperparameter selection
+  # 5.1. Plotting the loss per boosting round and cross validation split
   if(verbose == TRUE){
     pal <- rep(brewer.pal(nrow(HYPERPARAMETERS), "Spectral"), each = N_FOLD)
     plot(unlist(m[[1]][[2]]), type='l', ylim = c(0,0.2), xlim=c(0,NBOOST), ylab = "Loss", xlab = "Number of boost rounds")
@@ -86,7 +94,8 @@ model_run <- function(bluecloud.wd = bluecloud_dir,
            title = "hyp. nb. :")
   }
 
-  # --- Detect minimum loss and save corresponding model in one object
+  # 5.2. Select the best hyperparameter
+  # By detecting the minimum average loss across cross-validation runs
   losses <- lapply(m, function(x) {x[[2]]})
   HYPERPARAMETERS <- cbind(HYPERPARAMETERS,
                        min_loss = NA,
@@ -102,6 +111,8 @@ model_run <- function(bluecloud.wd = bluecloud_dir,
     HYPERPARAMETERS$min_loss[hp] <- min(extract_loss, na.rm = TRUE)
     HYPERPARAMETERS$n_boost[hp] <- which(extract_loss==min(extract_loss, na.rm = TRUE))
   }
+  
+  # 5.3. Select the best hyperparameter model object
   best_hp <- which(HYPERPARAMETERS$min_loss==min(HYPERPARAMETERS$min_loss))
   
   if(verbose == TRUE){
@@ -109,22 +120,15 @@ model_run <- function(bluecloud.wd = bluecloud_dir,
     print(paste("Best set of hyperparameters is :", best_hp))
   }
 
-  # --- Reload best_hp models from python because of "previous session invalidity"
+  # 5.4. Reload best_hp models from python to avoid error "previous session invalidity"
   best_m <- list()
   for(cv in 1:N_FOLD){
     m0 <- py_load_object(paste0(bluecloud.wd,"/data/",cv,"_",best_hp,"_m"), pickle = "pickle")
     best_m <- append(best_m, list(m0))
   } #cv loop
   
-  # --- Save only the best models
+  # 5.5. Save the corresponding object
   write_feather(HYPERPARAMETERS[best_hp,], paste0(bluecloud.wd,"/data/HYPERPARAMETERS.feather"))
   py_save_object(best_m, paste0(bluecloud.wd,"/data/m"), pickle = "pickle")
-  
-  # # --- Remove temporary files
-  # data_file <- list.files(paste0(bluecloud.wd,"/data/"))
-  # for(hp in 1:nrow(HYPERPARAMETERS)){
-  #   rem_file <- data_file[grep(paste0("_",hp,"_"), data_file)]
-  #   file.remove(rem_file)
-  # }
   
 } # end function

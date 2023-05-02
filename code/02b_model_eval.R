@@ -3,51 +3,63 @@
 #' 
 #' @source MBTR python library
 #' 
-#' @param bluecloud.wd path to the bluecloud descriptor file
-#' @param HYPERPARAMETERS dataframe of hyperparameter to test in the model
-#' @param N_FOLD number of cross validation fold to perform
-#' @param MAX_CLUSTER maximum CPU clustering for parallel computing
+#' @param bluecloud.wd path to the bluecloud folder containing the master script
+#' @param by_target TRUE or FALSE, performs the above mentionned metrics by target as well
+#' @param var_importance TRUE or FALSE, performs a variable importance output
 #' 
-#' @return a .pdf in /graphic with the Y and Y_hat per station and variable importance
+#' @return an eval object with all above mentionned metrics
 
 model_eval <- function(bluecloud.wd = bluecloud_dir,
                        by_target = TRUE,
-                       var_importance = FALSE,
-                       PDP = FALSE){
+                       var_importance = FALSE){
   
-  # --- Loading data
+  # --- 1. Loading data
+  # Here we load the MBTR models producing the minimum average loss for further performance evaluation
   setwd(paste0(bluecloud.wd,"/data/"))
   m <- py_load_object("m", pickle = "pickle")
   HYPERPARAMETERS <- read_feather(paste0(bluecloud.wd,"/data/HYPERPARAMETERS.feather"))
+  # We also load the station ID, target and feature tables
   ID <- read_feather(paste0(bluecloud.wd,"/data/Station_FOLD.feather"))
   Y0 <- as.data.frame(read_feather(paste0(bluecloud.wd,"/data/Y.feather")))
   X0 <- as.data.frame(read_feather(paste0(bluecloud.wd,"/data/X.feather")))
   
-  # --- Initializing outputs
+  # --- 2. Initializing outputs
   y_hat <- r2_tar <- r2cor_tar <- rmse_tar <- NULL
   
-  # --- Predicting on the validation data
+  # --- 3. Predicting on the validation data
+  # The models corresponding to the selected hyperparameter set and each n-cross-validation runs
+  # were evaluated by predicting on the corresponding n-test sets, not seen before by the models.
   for(cv in 1:N_FOLD){
-    # --- Loading test data and models
+    # 3.1. Loading test data and models
     X_val <- as.data.frame(read_feather(paste0(bluecloud.wd,"/data/", cv, "_X_val.feather")))
     m0 <- m[[cv]][[1]]
     
-    # --- Do predictions
+    # 3.2. Do predictions
     y_hat <- rbind(y_hat, mbtr_predict(model = m0, X_pred = X_val, n_boosts = HYPERPARAMETERS$n_boost))
   } # k-fold cv  loop
   
-  # --- Put y_hat_all back with the pre-fold station order
-  # We performed a random sorting to create the folds, we therefore need to match Y again before evaluation
+  # 3.3. Concatenate the y_hat corresponding to each prediction on test folds and 
+  # order them back with the pre-fold station order to match Y again before evaluation
   y_hat <- y_hat[order(ID$Station),]
   
-  # --- Global model evaluation
+  # --- 4. Testing the correlation structure integrity
+  # During the modelling process, between the different targets
+  dist_y_hat <- cor(y_hat) %>% as.dist()
+  dist_Y0 <- cor(as.matrix(Y0)) %>% as.dist()
+  message("--- Mantel test between Y0 and y_hat to test correlation structure")
+  mantel <- mantel.rtest(dist_y_hat, dist_Y0)
+  message(paste("--- Mantel correlation:", round(mantel$obs, 3)))
+  message(paste("--- p-value:", mantel$pvalue))
+  
+  # --- 5. Evaluate the model performance
+  # 5.1. Global model evaluation metrics
   r2 <- calc_rsquared(as.matrix(Y0), y_hat)
   rmse <- sqrt(mean(as.matrix((Y0-y_hat)^2), na.rm=TRUE))
   
   print(paste("--- model multidimensional R-squarred is :", round(r2, 2), "---"))
   print(paste("--- model multidimensional RMSE is :", round(rmse, 2), "---"))
   
-  # --- Target by target evaluation
+  # 5.2. Target by target evaluation metrics
   if(by_target==TRUE){
     for(t in 1:ncol(Y0)){
       # numeric R2
@@ -63,7 +75,7 @@ model_eval <- function(bluecloud.wd = bluecloud_dir,
     print(round(rmse_tar,2))
   }
   
-  # --- Plot predictions vs truth
+  # --- 6. Plot predictions vs truth for each target
   par(mar = c(4,4,5,0), mfrow = c(2,1))
   for(t in 1:ncol(Y0)){
     plot(y = Y0[,t], x = as.numeric(sort(ID$Station)), 
@@ -81,28 +93,14 @@ model_eval <- function(bluecloud.wd = bluecloud_dir,
     box()
   }
   
-  # --- Partial dependence plots
-  if(PDP==TRUE){
-    pdp <- array(NA, dim = c(100, ncol(Y0), ncol(X0), N_FOLD))
-    for(cv in 1:N_FOLD){
-      X_tr <- as.data.frame(read_feather(paste0(bluecloud.wd,"/data/", cv, "_X_tr.feather")))
-      m0 <- m[[cv]][[1]]
-      for(i in 1:ncol(X_tr)){
-        X_pdp <- matrix(NA, ncol = ncol(X_tr), nrow = 100, dimnames = list(NULL, colnames(X_tr))) %>% 
-          apply(1, function(x){x = apply(X_tr, 2, mean)}) %>% 
-          t() %>% 
-          as.data.frame()
-        X_pdp[,i] <- seq(min(X_tr[,i]), max(X_tr[,i]), length.out = 100)
-        pdp[,,i,cv] <- mbtr_predict(model = m0, X_pred = X_pdp, n_boosts = HYPERPARAMETERS$n_boost)
-      } # i env features
-    } # cv folds
-    pdp <- apply(pdp, c(1,2,3), mean)
-  } # if partial dependence plot
-
-  # --- Calculating variable importance
+  # --- 7. Calculating variable importance
+  # Performed according to the loss evolution corresponding to each tree split, 
+  # related to the corresponding environmental variable used for the split
+  # 7.1. Initialize object
   var_count <- matrix(0, ncol = ncol(X0), nrow=N_FOLD)
   colnames(var_count) <- colnames(X0)
   
+  # 7.2. Iteratively extract the loss corresponding to each tree split x environmental variable
   if(var_importance == TRUE){
     for(cv in 1:N_FOLD){
       m0 <- m[[cv]][[1]]
@@ -126,7 +124,7 @@ model_eval <- function(bluecloud.wd = bluecloud_dir,
       var_count[cv,] <- var_count0
     } # fold loop
     
-    # --- Plotting variable importance
+    # 7.3. Plotting the variable importance
     var_imp_order <- t(apply(var_count, 1, function(x) (x*100)/sum(x, na.rm = TRUE))) %>% 
       apply(2, median) %>% 
       order(decreasing = TRUE)
@@ -141,6 +139,6 @@ model_eval <- function(bluecloud.wd = bluecloud_dir,
     box()
 
   } # var imp
-  return(list(r2 = r2, rmse = rmse, r2_tar = r2_tar, r_cor_tar = r2cor_tar, rmse_tar = rmse_tar, var_count = var_count, y_hat = y_hat))
+  return(list(r2 = r2, rmse = rmse, r2_tar = r2_tar, r_cor_tar = r2cor_tar, rmse_tar = rmse_tar, var_count = var_count, y_hat = y_hat, mantel = mantel))
 
 } # end function

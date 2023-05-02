@@ -1,10 +1,59 @@
 
 # ==============================================================================
+# GGMM & GGZZ correlation
+# ==============================================================================
+
+# To fit just before escoufier resampling
+toto <- target %>% collect()
+
+# Get stations where we have GGMM
+GGMM_locs <- toto %>% 
+  dplyr::select(Station, Filter) %>% 
+  dplyr::filter(Filter == 'GGMM')
+
+# Get stations where we have GGZZ
+GGZZ_locs <- toto %>% 
+  dplyr::select(Station, Filter) %>% 
+  dplyr::filter(Filter == 'GGZZ')
+
+# Get common stations
+common_locs <- GGZZ_locs %>% 
+  inner_join(GGMM_locs, by = "Station")
+
+# Read matrix from GGMM
+GGMM_reads <- toto %>% 
+  dplyr::filter(Filter == "GGMM") %>% 
+  dplyr::filter(grepl(paste(common_locs$Station, collapse = "|"), Station)) %>% 
+  dplyr::select(-Station, -Filter, -Longitude, -Latitude, -sum_reads) %>% 
+  apply(1, function(x){if(sum(x)>0){x = x/sum(x, na.rm = TRUE)} else {x = x}}) %>% 
+  aperm(c(2,1))
+
+# Read matrix from GGZZ
+GGZZ_reads <- toto %>% 
+  dplyr::filter(Filter == "GGZZ") %>% 
+  dplyr::filter(grepl(paste(common_locs$Station, collapse = "|"), Station)) %>% 
+  dplyr::select(-Station, -Filter, -Longitude, -Latitude, -sum_reads) %>% 
+  apply(1, function(x){if(sum(x)>0){x = x/sum(x, na.rm = TRUE)} else {x = x}}) %>% 
+  aperm(c(2,1))
+
+# Mantel test ?
+library(vegan)
+mantel(dist(GGMM_reads), dist(GGZZ_reads))
+mantel(dist(GGMM_reads), dist(GGMM_reads)) # Control
+
+plot(GGMM_reads,GGZZ_reads)
+grid()
+abline(coef = c(0,1), col = "red")
+
+
+
+
+# ==============================================================================
 # TARA Stations map
 # ==============================================================================
 
 # --- For local database
-db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/",FILTER,"_DB.sqlite"))
+db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/Picoeuk_DB_clean.sqlite"))
 
 # --- Collect data
 tara_station <- tbl(db, "sum_station") %>% 

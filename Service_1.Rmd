@@ -1,7 +1,7 @@
 ---
-title: "Service_1"
+title: "service_1"
 author: "aschickele"
-date: "25/11/2021"
+date: "28/04/2023"
 output:
   html_document:
     df_print: paged
@@ -64,9 +64,9 @@ Second, we use Metagenomic data retrieved from the Marine Atlas of Tara Ocean Un
 
 -   If possible, each gene is functionally annotated using the KEGG (Kyoto Encyclopedia of Genes and Genomes) framework: <https://www.genome.jp/kegg/pathway.html>. This corresponds to a two-level annotation, i.e. the KEGG functional annotation, contained in KEGG metabolic pathways.
 
--   Genes are grouped by similarity of sequences into clusters (i.e., **Connected Components; CC**), containing annotated genes (i.e. KEGG + pathways) and yet unknown genes.
+-   Genes are grouped by similarity of sequences into protein functional clusters (i.e., **Connected Components** in the data and code**; CC**), containing annotated genes (i.e. KEGG + pathways) and yet unknown genes.
 
-In other words, we can model the biogeography of CCs related to a given metabolic pathways. **These data are stored in a PostgreSQL database, accessed during the first step of the modeling pipeline.**
+In other words, we can model the biogeography of CCs related to a given metabolic pathway. **These data are stored in a PostgreSQL database, accessed during the first step of the modeling pipeline.**
 
 ------------------------------------------------------------------------
 
@@ -100,7 +100,7 @@ pip install .
 ```{bash}
 
 cd
-R -e "install.packages(c('vegan','corrplot','FactoMineR','pastecs','raster','virtualspecies','abind','feather','reticulate','RColorBrewer','parallel','mvrsquared','tidyverse','RSQLite','RPostgreSQL'), repos='https://cran.r-project.org/', dependencies=TRUE)"
+R -e "install.packages(c('vegan','corrplot','FactoMineR','pastecs','raster','virtualspecies','abind','feather','reticulate','RColorBrewer','parallel','mvrsquared','tidyverse','RSQLite','RPostgreSQL','ade4'), repos='https://cran.r-project.org/', dependencies=TRUE)"
 ```
 
 ### 3.1.3. Functions
@@ -117,6 +117,7 @@ Here is an example for a Jupyter Hub instance on BlueCloud, where the pipeline h
 # --- Input / Output directories
 bluecloud_dir <- "/home/jovyan/"
 data_dir <- "/home/jovyan/data/"
+output_dir <- bluecloud_dir
 ```
 
 -   Once the paths are properly indicated in the config file, we can run the following command:
@@ -132,7 +133,7 @@ The config file also contains parameters that may be modified by an expert user.
 ```{r}
 # --- Model specific parameters
 NBOOST <- 3000 # maximum number of boosting rounds
-N_FOLD <- 5 # number of k-fold cross validation runs
+N_FOLD <- 10 # number of k-fold cross validation runs
 
 NBOOTSTRAP <- 20 # number of bootstrap rounds for script 03
 ```
@@ -206,7 +207,7 @@ The function returns several outputs as a list in the working environment. In ad
 
 -   **e**: output of the Escoufier selection, including the ID of the selected targets and the explained variability.
 
--   **CC_desc**: *k-targets x 15 columns* table containing the ID of the cluster and a set of variables describing their characteristics (e.g., number of genes, size, unknown rate etc...), their taxonomic and functional annotation. The latter corresponds to all annotated gene functions contained in a given gene cluster. If the cluster only contains unknown gene functions, it will be annotated as NA.
+-   **CC_desc**: *k-targets x 14 columns* table containing the ID of the cluster and a set of variables describing their characteristics (e.g., number of genes, size, unknown rate etc...), their taxonomic and functional annotation. The latter corresponds to all annotated gene functions contained in a given gene cluster. If the cluster only contains unknown gene functions, it will be annotated as NA.
 
 -   **nn_ca**: a dataframe describing the correspondence between Escoufier non-selected targets and their nearest Escoufier selected neighbor, including the position of the target in the previously described dataframe, their sum of reads and importance scale in the observed data. This information is used to reconstruct the outputs with all targets at the end of the pipeline.
 
@@ -218,7 +219,7 @@ In addition, the size of the outputs (i.e. number of stations, targets and featu
 
 The machine learning algorithm used in this notebook is based on a Python library (MBTR; see <https://mbtr.readthedocs.io/en/latest/>) and performs multivariate gradient boosting (i.e. several target modeled at once). The underlying Python implementation is invisible to the user.
 
-In line with best practices in machine learning, the `X.feather` and `Y.feather` tables retrieved from section 3.2. are split between a **training set** and a **test set**. The latter is performed using *n*-fold cross-validation splits: i.e. the data are split in *n*-equal sized groups, *n*-models are trained on *n-1* splits, holding the last split for model evaluation only. The test split is different for each of the *n*-models.
+In line with best practices in machine learning, the `X.feather` and `Y.feather` tables retrieved from section 3.2. are split between a **training set** and a **test set**. The latter is performed using *n*-fold cross-validation splits: i.e. the data are split in *n*-equal sized groups, *n*-models are trained on *n-1* splits, holding the last split for model evaluation only. To minimize the effect of spatial and temporal autocorrelation in our data (i.e. leading to over-optimistic model evaluation, the n-folds were defined according to the Tara Oceans station number. Because the cruise followed a continuous trajectory in time and along the sampled station, the resulting folds are spatially and temporally distant (i.e., spatial and temporal block splitting). The test split is different for each of the *n*-models.
 
 In order to select the best model, we tested different sets of hyperparameters, leading to one algorithm per cross-validation fold and set of hyperparameters. The quality of fit of each algorithm is measured by a loss function at each boosting round. **The best model is selected according to the hyperparameters and number of boosting round that produced the minimum loss averaged between all cross-validation folds.**
 
@@ -257,7 +258,7 @@ The function returns two outputs, written as `m.pickle` and `HYPERPARAMETERS.fea
 
 ### 3.4.1. General principle
 
-As described in the previous section, the performance of our select model is evaluated by using the test split corresponding to each cross-validation fold. In this step, we perform two evaluation metrics: i.e. r-squared (`R2`) and root mean squared error (`rmse`). For each cross-validation fold, these metrics compare the prediction of our model on `X_te.feather` (referred as "y_hat") with the true values written in `Y_te.feather`.
+As described in the previous section, the performance of our select model (i.e., with the best hyperparameters) is evaluated by using the test split corresponding to each cross-validation fold. In this step, we perform two evaluation metrics: i.e. r-squared (`R2`) and root mean squared error (`rmse`). For each cross-validation fold, these metrics compare the prediction of our model on `X_te.feather` (referred as "y_hat") with the true values written in `Y_te.feather`. In addition, we test if the correlation structure between each target is kept during the modelling process. The latter is done using a Mantel matrix comparison test between the predicted and observed values at the sampled stations. The result is printed in the console.
 
 To evaluate the performance of our selected model, we call the `model_eval()` function:
 
@@ -289,6 +290,8 @@ This function provides a series of graphical outputs and evaluation metrics list
 -   Prediction vs test set plot: for each target, this function provides a plot comparing the true test values (i.e. all `Y_te.feather`) of the targets and the model predictions on the test set (i.e. all `y_hat`).
 
 -   Evaluation metrics: as described in section 3.4.1., the average `R2` and `rmse` and the corresponding standard deviation between cross-validation folds are printed in the console.
+
+-   Mantel test correlation and p-value: printed in the console to ensure that the correlation structure between targets is kept by the trained model.
 
 ## 3.5. Spatial projections
 
@@ -339,7 +342,51 @@ The `model_proj()` function provides a series of outputs stored in a list and ne
 
 -   `y_hat`: a *p-geographical pixel x t-target x m-bootstrap* abundance matrix. This table is used to represent the average pattern intensity and corresponding uncertainty across oceans.
 
-# 4. Graphical outputs
+## 3.6. Partial dependency plot
+
+### 3.6.1. General principle
+
+Now that we have computed bootstrap-based projections, we can re-use the same bootstrap splits to compute partial dependency plots (PDPs). The latter estimate the univariate response of the pattern intensity to each environmental feature variable. They can be presented as potential response or taxonomically scaled, like the spatial projections in the previous section.
+
+The PDPs can be computed with the following `pdp()` function:
+
+```{r}
+
+pdp(bluecloud.wd = bluecloud_dir,
+    data.wd = data_dir,
+    ENV_METRIC = c("mean","sd","dist","bathy")
+    plot_list= list(RUBISCO = "01601|01602",
+                                  PPC = "1595",
+                                  GOT = "14454|14455",
+                                  PEPCK = "01610",
+                                  MDH_NAD = "00024|00025|00026",
+                                  MDH_NADP = "00051",
+                                  MDC_NADP = "00029",
+                                  MDC_NAD = "00028",
+                                  GPT_GGAT = "00814|14272",
+                                  PPDK = "1006"),
+                scaled = TRUE)
+```
+
+### 3.6.2. Inputs
+
+The `pdp()` function reads the `X.feather`, `Y.feather` and `HYPERPARAMETERS.feather` files written in section 3.2.3 and 3.3.3. respectively. In addition, it takes as input the following user-defined parameters:
+
+-   `bluecloud.wd`: the location of the pipeline root. Accepts a pathway string if different that the pathway defined in the `00a_config.R` in section 3.1.3.
+
+-   `data.wd`: the location of the environmental data folder. Accepts a pathway string if different that the pathway defined in the `00a_config.R` in section 3.1.3.
+
+-   `ENV_METRIC`: a vector of strings containing the environmental variables to include in the features. The strings correspond to the variable names or format described in section 2.1. **To avoid spurious projections, please note that this parameter needs to contain the same variable names as in section 3.2.2. (i.e. the variables on which the model has been trained).**
+
+-   `plot_list`: list of enzymes to compute the PDP for, defined with their respective KEGG KO identifiers
+
+-   `scaled = TRUE`: the outputs are scaled by the sum of reads of the observed data. Therefore, this corresponds to the weighted distributional patterns, i.e., including eventual taxonomic dominance in the raw data
+
+### 3.6.3. Outputs
+
+The output of this function corresponds to a pdf file, containing the PDPs for all environmental features and enzymes selected. The plots are grouped by environmental features for a easy comparison of the responses between enzymes to the same environmental factor.
+
+# 4. Other graphical outputs
 
 To avoid unnecessary computing, the default graphical outputs of this notebook are provided by separate functions using the outputs described in section 3.5.3., namely `legend_proj()`, `map_proj()` and `cor_proj()`.
 
@@ -407,7 +454,7 @@ dev.off()
 
 Before creating the outputs, we first need to define a set of parameters and tables to aggregate the projections by enzymes (i.e., that may have different KEGG IDs). Moreover, the outputs can be scaled or not with the sum of reads of the observed data:
 
--   `scaled = TRUE`: the outputs are scaled by the sum of reads of the observed data. Therefore, this corresponds to the realised distributional patterns, i.e., including eventual taxonomic dominance in the raw data
+-   `scaled = TRUE`: the outputs are scaled by the sum of reads of the observed data. Therefore, this corresponds to the weighted distributional patterns, i.e., including eventual taxonomic dominance in the raw data
 
 -   `scale = FALSE` : the outputs correspond to the potential distributional pattern, where taxonomic effects have been alleviated.
 

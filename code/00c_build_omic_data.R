@@ -26,17 +26,18 @@ source(file = "./code/00a_config.R")
 
 # --- 1. Create and open RSQLite database on Marie
 # unlink(paste0(bluecloud.wd, "/omic_data/",FILTER,"_DB.sqlite"))
-db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/",FILTER,"_DB_clean.sqlite")) # clean = no appendicularia and hexanauplia
+# db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/",FILTER,"_DB_clean.sqlite")) # clean = no appendicularia and hexanauplia
+# db <- dbConnect(RSQLite::SQLite(), paste0(bluecloud.wd, "/omic_data/Picoeuk_DB_clean.sqlite")) # clean = no appendicularia and hexanauplia
 
 # --- 1B. Create and open RPostgreSQL database on BlueCloud
-# db <- dbConnect(
-#   drv=PostgreSQL(),
-#   host="postgresql-srv.d4science.org",
-#   dbname="bluecloud_demo2",
-#   user="bluecloud_demo2_writer",
-#   password="toto",
-#   port=5432
-# )
+db <- dbConnect(
+  drv=PostgreSQL(),
+  host="postgresql-srv.d4science.org",
+  dbname="bluecloud_demo2",
+  user="bluecloud_demo2_writer",
+  password="toto",
+  port=5432
+)
 
 # --- 2. Open "clusters" and sort by n_genes
 taxo <- read_feather(paste0(bluecloud.wd, "/omic_data/CC_PFAM_taxo_80cutoff.feather")) %>% 
@@ -55,7 +56,8 @@ reads <- vroom(file = paste0(bluecloud.wd, "/omic_data/SMAGs-v1.cds.95.mg.matrix
   dplyr::select(contains(c("Genes", FILTER))) %>% 
   pivot_longer(!Genes, names_to = "code", values_to = "readCount") %>% 
   mutate(code = paste0("00", code),
-         Station = str_sub(code, -13, -11)) %>% 
+         Station = str_sub(code, str_locate(code, DEPTH)[,1]-3, str_locate(code, DEPTH)[,1]-1), # Better defined in case of inconsistent naming
+         Filter = str_sub(code, -6, -3)) %>% # Keeping track of the initial filter
   dplyr::select(-code) %>% 
   inner_join(dplyr::select(clusters, "Genes"))
 
@@ -64,7 +66,7 @@ gene_length <- vroom(file = paste0(bluecloud.wd, "/omic_data/EukMAGS_SMAGs_nucl_
   mutate(readperkb = readCount / kb)
 
 reads <- gene_length %>% 
-  dplyr::select(contains(c("Genes","readperkb","Station"))) %>% 
+  dplyr::select(contains(c("Genes","readperkb","Station","Filter"))) %>% 
   rename(readCount = readperkb)
 
 copy_to(db, reads, temporary = FALSE, overwrite = TRUE)
@@ -78,10 +80,10 @@ locs <- vroom(file = paste0(bluecloud.wd, "/omic_data/SMAGs_Env_lonlat.csv")) %>
 copy_to(db, locs, temporary = FALSE, overwrite = TRUE)
 
 sum_station <- tbl(db, "reads") %>% 
-  group_by(Station) %>% 
+  group_by(Station, Filter) %>% 
   summarise(sum_reads = sum(readCount, na.rm = TRUE), .groups = "drop") %>% 
   left_join(tbl(db, "locs"), by = "Station") %>% 
-  dplyr::select("Station","sum_reads")
+  dplyr::select("Station","Filter","sum_reads")
 copy_to(db, sum_station, temporary = FALSE, overwrite = TRUE)
 
 # --- 5. Join "reads", "clusters" and "locs" into "data"

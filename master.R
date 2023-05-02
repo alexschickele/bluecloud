@@ -35,12 +35,12 @@ cluster_selec0 = list(c(50,1,1),
 for(p in 1:length(kegg_p0)){
   kegg_p = kegg_p0[p]
   kegg_m = kegg_m0[[p]]
-  exclude = "None"
+  exclude = "New_MAST-4|Oomycota"
   cluster_selec = cluster_selec0[[p]]
-  env_metric = c("max", "min")
+  env_metric = c("mean", "sd")
   relative = TRUE
   
-  output_dir <- paste0(kegg_p, "_", exclude, "_", 
+  output_dir <- paste0("ReviewBC_", kegg_p, "_", exclude, "_", 
                        paste(cluster_selec, collapse = "_"), "_",
                        paste(env_metric, collapse = "_"), "_",
                        if(relative==TRUE){"rel"} else {"abs"})
@@ -220,23 +220,23 @@ plot_list <- list(RUBISCO = "01601|01602",
                   MDC_NAD = "00028",
                   GPT_GGAT = "00814|14272",
                   PEPDK = "1006")
-
-plot_list <- list(NRT = "02575",
-                  NR = "10534|00367",
-                  NIT = "17877|00366",
-                  AMT = "03320",
-                  GS = "01915",
-                  NADH_GLT = "00264",
-                  NADPH_GLT = "00265",
-                  Fd_GLT = "00284",
-                  GDH1 = "00262",
-                  GDH2 = "00261")
-
-plot_list <- list(#HCP = "05601",
-                  NIR = "17877|00366",
-                  arcC = "00926",
-                  GS = "01915",
-                  speB = "01480")
+# 
+# plot_list <- list(NRT = "02575",
+#                   NR = "10534|00367",
+#                   NIT = "17877|00366",
+#                   AMT = "03320",
+#                   GS = "01915",
+#                   NADH_GLT = "00264",
+#                   NADPH_GLT = "00265",
+#                   Fd_GLT = "00284",
+#                   GDH1 = "00262",
+#                   GDH2 = "00261")
+# 
+# plot_list <- list(#HCP = "05601",
+#                   NIR = "17877|00366",
+#                   arcC = "00926",
+#                   GS = "01915",
+#                   speB = "01480")
 
 # --- Supplementary parameters parameters
 CC_desc_e <- query$CC_desc[query$e$vr,] %>% inner_join(query$nn_ca)
