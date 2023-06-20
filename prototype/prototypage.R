@@ -1,4 +1,23 @@
 
+# Match delmont avec nos MAGs
+setwd("~/workspace/bluecloud/prototype")
+library(tidyverse)
+library(vroom)
+delmont <- readxl::read_excel("./Suppl_Table_Details_on_MAGs_Delmontetal_2022.xlsx", skip = 3)
+our_mag <- read.table("./gene_and_mags_alex.txt") %>% 
+  dplyr::select(MAG) %>% 
+  unique()
+names(our_mag) <- "Genome_Id"
+delmont_short <- delmont %>% 
+  merge(our_mag)
+
+completion <- delmont_short$percent_completion %>% 
+  mean(na.rm = TRUE)
+hist(delmont_short$percent_completion, breaks = 25)
+
+write_csv(delmont_short, file = "./Supplementary_table_3.csv")
+
+
 # ==============================================================================
 # GGMM & GGZZ correlation
 # ==============================================================================
