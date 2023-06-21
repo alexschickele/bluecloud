@@ -46,7 +46,7 @@ server <- function(input, output) {
   output$SliderWidget <- renderUI({
     message("  --- update SliderWidget")
     tmp <- id_r()
-    sliderInput("CC_to_plot", "Explore underlying Connected Component projection:",
+    sliderInput("CC_to_plot", "Explore underlying Protein Functional Cluster projection:",
                 min = 1, max = length(tmp), value = 1, step = 1)
   }) # end UI output
   
@@ -78,7 +78,7 @@ server <- function(input, output) {
     pal <- proj$col[[tmp]]
     
     par(mar = c(4,2,3,0))
-    plot(proj$proj[[tmp]], col = pal, legend = FALSE, main = "Connected Component projection")
+    plot(proj$proj[[tmp]], col = pal, legend = FALSE, main = "Protein Functional Cluster projection")
     
   }) # end output
   
@@ -86,7 +86,7 @@ server <- function(input, output) {
   output$CC_desc <- renderUI({
     tmp <- which(str_detect(CC_desc_e$kegg_ko, plot_list[[as.numeric(input$enz_name)]])==TRUE)[input$CC_to_plot]
     HTML("<br/>",
-         paste("<u><b>Connected Component description:</b></u>", "<br/>"),
+         paste("<u><b>Protein Functional Cluster description:</b></u>", "<br/>"),
          paste("<b>KEGG KO:</b>", CC_desc_e$kegg_ko[tmp], "<br/>"),
          paste("<b>Unknown rate:</b>", round(CC_desc_e$unknown_rate[tmp],2), "%","<br/>"),
          paste("<b>Taxonomic Class:</b>", CC_desc_e$class[tmp], "<br/>"),
