@@ -20,118 +20,113 @@ source("./code/03a_bootstrap_predict.R")
 MAX_CLUSTER <- 20
 
 # =========================== DEFINE PARAMETERS ================================
-kegg_p0 = c("C4_RUBISCO_clean","C4_RUBISCO", "N_strategy", "N_diatom")
+kegg_p0 = c("C4_RUBISCO_clean")
 kegg_m0 = list(paste0("K",c("01601","01602","01595","00051","00028","00029","00814","14272","01006","14454","14455","00024","00025","00026","01610")),
-               paste0("K",c("01601","01602","01595","00051","00028","00029","00814","14272","01006","14454","14455","00024","00025","00026","01610")),
-               paste0("K", c("02575","10534", "00367", "17877", "00366", "03320", "01915", "00264", "00265", "00284", "00262", "00261")),
-               paste0("K", c("05601", "17877", "00366", "00926", "01915", "01480"))
                )
 
-cluster_selec0 = list(c(50,1,1),
-                      c(50,1,1),
-                      c(30,1,0.5),
-                      c(30,1,1))
+cluster_selec0 = list(c(50,1,1))
 
-for(p in 1:length(kegg_p0)){
-  kegg_p = kegg_p0[p]
-  kegg_m = kegg_m0[[p]]
-  exclude = "New_MAST-4|Oomycota"
-  cluster_selec = cluster_selec0[[p]]
-  env_metric = c("mean", "sd")
-  relative = TRUE
-  
-  output_dir <- paste0("ReviewBC_", kegg_p, "_", exclude, "_", 
-                       paste(cluster_selec, collapse = "_"), "_",
-                       paste(env_metric, collapse = "_"), "_",
-                       if(relative==TRUE){"rel"} else {"abs"})
-  
-  # ================= LOAD IF MODEL EXISTS // CREATE DIR IF NOT ==================
-  if (length(list.files(paste0(bluecloud_dir, "/output/", output_dir)))!=0){
-    message(">>> This model has already been run ... loading files <<<")
-    old_files <- list.files(paste0(bluecloud_dir, "/output/", output_dir))
-    old_files <- old_files[-grep("pdf|RData", old_files)]
-    for(i in old_files){
-      file.copy(from = paste0(bluecloud_dir, "/output/", output_dir, "/", i), to = data_dir, overwrite = TRUE)
-    }
-    load(file = paste0(bluecloud_dir, "/output/", output_dir, "/output.RData"))
-  } else {
-    message(">>> This model has never been run ... create directory <<<")
-    dir.create(paste0(bluecloud_dir, "/output/", output_dir))
+# Parameter ID - interactive
+p <- 1
+
+# Select the parameters
+kegg_p = kegg_p0[p]
+kegg_m = kegg_m0[[p]]
+exclude = "New_MAST-4|Oomycota"
+cluster_selec = cluster_selec0[[p]]
+env_metric = c("mean", "sd")
+relative = TRUE
+
+output_dir <- paste0("ReviewBC_", kegg_p, "_", exclude, "_", 
+                     paste(cluster_selec, collapse = "_"), "_",
+                     paste(env_metric, collapse = "_"), "_",
+                     if(relative==TRUE){"rel"} else {"abs"})
+
+# ================= LOAD IF MODEL EXISTS // CREATE DIR IF NOT ==================
+if (length(list.files(paste0(bluecloud_dir, "/output/", output_dir)))!=0){
+  message(">>> This model has already been run ... loading files <<<")
+  old_files <- list.files(paste0(bluecloud_dir, "/output/", output_dir))
+  old_files <- old_files[-grep("pdf|RData", old_files)]
+  for(i in old_files){
+    file.copy(from = paste0(bluecloud_dir, "/output/", output_dir, "/", i), to = data_dir, overwrite = TRUE)
   }
-  
-  # ===================== RUN THE PIPELINE AND SAVE ==============================
-  # With the data present in /data if partially run
-  
-  # 1. Query data, synthetic cluster plot & save ---------------------------------
-  query <- query_data(bluecloud.wd = bluecloud_dir,
-                      EXCLUDE = exclude,
-                      KEGG_m = kegg_m,
-                      CLUSTER_SELEC = list(N_CLUSTERS = cluster_selec[1], MIN_GENES = cluster_selec[2], EXCLUSIVITY_R = cluster_selec[3]),
-                      ENV_METRIC = c(env_metric),
-                      relative = TRUE)
-  
-  file.copy(from = paste0(data_dir, "/X.feather"), to = paste0(bluecloud_dir, "/output/", output_dir))
-  file.copy(from = paste0(data_dir, "/Y.feather"), to = paste0(bluecloud_dir, "/output/", output_dir))
-  file.copy(from = paste0(data_dir, "/CC_desc.feather"), to = paste0(bluecloud_dir, "/output/", output_dir))
-  
-  # Assign points to the nearest escoufier selected point (correspondent analysis)
-  res_ca <- CA(query$Y0, graph = FALSE, ncp = 50)
-  plot(res_ca$col$coord[,1], res_ca$col$coord[,2], pch = 19,
-       xlab = paste0("Dimension 1 (", round(res_ca$eig[1,2],2),"%)"), 
-       ylab = paste0("Dimension 2 (",round(res_ca$eig[2,2],2) ,"%)"))
-  points(res_ca$col$coord[1:cluster_selec[1],1], res_ca$col$coord[1:cluster_selec[1],2], pch = 19, col = "red")
-  ndim_ca <- which(res_ca$eig[,3]>80)[1]
-  dist_ca <- dist(res_ca$col$coord[,1:ndim_ca]) %>% as.matrix()
-  dist_ca <- dist_ca[,1:cluster_selec[1]]
-  
-  # Distance plot
-  tmp <- dist_ca[1:50,] %>% apply(2, min)
-  hist(tmp[50:length(tmp)], breaks = 50, main = "distance to the nearest Escoufier neighboor", col = "gray50")
-  abline(h = c(1,5), col = c("red","black"))
-  grid(col  = "black")
-  
-  # Quantify dominance of CC
-  tmp <- apply(query$Y0,2,sum)
+  load(file = paste0(bluecloud_dir, "/output/", output_dir, "/output.RData"))
+} else {
+  message(">>> This model has never been run ... create directory <<<")
+  dir.create(paste0(bluecloud_dir, "/output/", output_dir))
+}
 
-  # Concatenate in dataframe
-  nn_ca <- data.frame(CC = dimnames(dist_ca)[[1]],
-                      pos_CC = 1:nrow(dist_ca),
-                      nn_CC = apply(dist_ca, 1, function(x){x = names(which(x == min(x)))}),
-                      pos_nn_CC = apply(dist_ca, 1, function(x){x = which(x == min(x))}),
-                      sum_CC = tmp,
-                      scale_CC = tmp/tmp[apply(dist_ca, 1, function(x){x = which(x == min(x))})])
-  
-  # Add it to query
-  query[["nn_ca"]] <- nn_ca
-  
-  # 2. Run model & save ----------------------------------------------------------
-  run <- model_run(bluecloud.wd = bluecloud_dir,
-                   HYPERPARAMETERS = data.frame(LEARNING_RATE = c(5e-3, 5e-3, 5e-3, 5e-3),
-                                                N_Q = c(10, 10, 10, 10),
-                                                MEAN_LEAF = c(20, 30, 40, 50)),
-                   verbose = TRUE)
-  
-  file.copy(from = paste0(data_dir, "/HYPERPARAMETERS.feather"), to = paste0(bluecloud_dir, "/output/", output_dir), overwrite = TRUE)
-  file.copy(from = paste0(data_dir, "/Station_FOLD.feather"), to = paste0(bluecloud_dir, "/output/", output_dir), overwrite = TRUE)
-  file.copy(from = paste0(data_dir, "/Station_ID.feather"), to = paste0(bluecloud_dir, "/output/", output_dir), overwrite = TRUE)
-  file.copy(from = paste0(data_dir, "/m"), to = paste0(bluecloud_dir, "/output/", output_dir), overwrite = TRUE)
-  for(n in 1:N_FOLD){
-    file.copy(from = paste0(data_dir, "/", n,"_X_val.feather"), to = paste0(bluecloud_dir, "/output/", output_dir), overwrite = TRUE)
-  }
-  
-  # 3. Evaluate model ------------------------------------------------------------
-  eval <- model_eval(bluecloud.wd = bluecloud_dir,
-                     by_target = TRUE,
-                     var_importance = TRUE)
-  
-  # 4. Do projections & save -----------------------------------------------------
-  proj <- model_proj(bluecloud.wd = bluecloud_dir,
-                     data.wd = data_dir,
-                     ENV_METRIC = c(env_metric))
-  
-  save(query, eval, proj, file = paste0(bluecloud_dir, "/output/", output_dir, "/output.RData"))
+# ===================== RUN THE PIPELINE AND SAVE ==============================
+# With the data present in /data if partially run
 
-} # global run loop    
+# 1. Query data, synthetic cluster plot & save ---------------------------------
+query <- query_data(bluecloud.wd = bluecloud_dir,
+                    EXCLUDE = exclude,
+                    KEGG_m = kegg_m,
+                    CLUSTER_SELEC = list(N_CLUSTERS = cluster_selec[1], MIN_GENES = cluster_selec[2], EXCLUSIVITY_R = cluster_selec[3]),
+                    ENV_METRIC = c(env_metric),
+                    relative = TRUE)
+
+file.copy(from = paste0(data_dir, "/X.feather"), to = paste0(bluecloud_dir, "/output/", output_dir))
+file.copy(from = paste0(data_dir, "/Y.feather"), to = paste0(bluecloud_dir, "/output/", output_dir))
+file.copy(from = paste0(data_dir, "/CC_desc.feather"), to = paste0(bluecloud_dir, "/output/", output_dir))
+
+# Assign points to the nearest escoufier selected point (correspondent analysis)
+res_ca <- CA(query$Y0, graph = FALSE, ncp = 50)
+plot(res_ca$col$coord[,1], res_ca$col$coord[,2], pch = 19,
+     xlab = paste0("Dimension 1 (", round(res_ca$eig[1,2],2),"%)"), 
+     ylab = paste0("Dimension 2 (",round(res_ca$eig[2,2],2) ,"%)"))
+points(res_ca$col$coord[1:cluster_selec[1],1], res_ca$col$coord[1:cluster_selec[1],2], pch = 19, col = "red")
+ndim_ca <- which(res_ca$eig[,3]>80)[1]
+dist_ca <- dist(res_ca$col$coord[,1:ndim_ca]) %>% as.matrix()
+dist_ca <- dist_ca[,1:cluster_selec[1]]
+
+# Distance plot
+tmp <- dist_ca[1:50,] %>% apply(2, min)
+hist(tmp[50:length(tmp)], breaks = 50, main = "distance to the nearest Escoufier neighboor", col = "gray50")
+abline(h = c(1,5), col = c("red","black"))
+grid(col  = "black")
+
+# Quantify dominance of CC
+tmp <- apply(query$Y0,2,sum)
+# Concatenate in dataframe
+nn_ca <- data.frame(CC = dimnames(dist_ca)[[1]],
+                    pos_CC = 1:nrow(dist_ca),
+                    nn_CC = apply(dist_ca, 1, function(x){x = names(which(x == min(x)))}),
+                    pos_nn_CC = apply(dist_ca, 1, function(x){x = which(x == min(x))}),
+                    sum_CC = tmp,
+                    scale_CC = tmp/tmp[apply(dist_ca, 1, function(x){x = which(x == min(x))})])
+
+# Add it to query
+query[["nn_ca"]] <- nn_ca
+
+# 2. Run model & save ----------------------------------------------------------
+run <- model_run(bluecloud.wd = bluecloud_dir,
+                 HYPERPARAMETERS = data.frame(LEARNING_RATE = c(5e-3, 5e-3, 5e-3, 5e-3),
+                                              N_Q = c(10, 10, 10, 10),
+                                              MEAN_LEAF = c(20, 30, 40, 50)),
+                 verbose = TRUE)
+
+file.copy(from = paste0(data_dir, "/HYPERPARAMETERS.feather"), to = paste0(bluecloud_dir, "/output/", output_dir), overwrite = TRUE)
+file.copy(from = paste0(data_dir, "/Station_FOLD.feather"), to = paste0(bluecloud_dir, "/output/", output_dir), overwrite = TRUE)
+file.copy(from = paste0(data_dir, "/Station_ID.feather"), to = paste0(bluecloud_dir, "/output/", output_dir), overwrite = TRUE)
+file.copy(from = paste0(data_dir, "/m"), to = paste0(bluecloud_dir, "/output/", output_dir), overwrite = TRUE)
+for(n in 1:N_FOLD){
+  file.copy(from = paste0(data_dir, "/", n,"_X_val.feather"), to = paste0(bluecloud_dir, "/output/", output_dir), overwrite = TRUE)
+}
+
+# 3. Evaluate model ------------------------------------------------------------
+eval <- model_eval(bluecloud.wd = bluecloud_dir,
+                   by_target = TRUE,
+                   var_importance = TRUE)
+
+# 4. Do projections & save -----------------------------------------------------
+proj <- model_proj(bluecloud.wd = bluecloud_dir,
+                   data.wd = data_dir,
+                   ENV_METRIC = c(env_metric))
+
+save(query, eval, proj, file = paste0(bluecloud_dir, "/output/", output_dir, "/output.RData"))
+ 
   
 
 # ==============================================================================
@@ -220,23 +215,6 @@ plot_list <- list(RUBISCO = "01601|01602",
                   MDC_NAD = "00028",
                   GPT_GGAT = "00814|14272",
                   PEPDK = "1006")
-# 
-# plot_list <- list(NRT = "02575",
-#                   NR = "10534|00367",
-#                   NIT = "17877|00366",
-#                   AMT = "03320",
-#                   GS = "01915",
-#                   NADH_GLT = "00264",
-#                   NADPH_GLT = "00265",
-#                   Fd_GLT = "00284",
-#                   GDH1 = "00262",
-#                   GDH2 = "00261")
-# 
-# plot_list <- list(#HCP = "05601",
-#                   NIR = "17877|00366",
-#                   arcC = "00926",
-#                   GS = "01915",
-#                   speB = "01480")
 
 # --- Supplementary parameters parameters
 CC_desc_e <- query$CC_desc[query$e$vr,] %>% inner_join(query$nn_ca)
