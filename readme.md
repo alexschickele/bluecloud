@@ -2,37 +2,33 @@
 output: word_document
 ---
 
-# Demonstrator 2 - Notebook 2:
-
-# Mapping the geographical distribution of plankton functional gene clusters using habitat prediction modes
+# Code and R scripts to map the geographical distribution of plankton functional gene clusters using habitat prediction models
 
 ------------------------------------------------------------------------
 
-**Authors:** A. Schickele, P. Debeljack, L. Guidi, S. Ayata, J.O. Irisson
+**Authors:** A. Schickele, P. Debeljack, , S. Ayata, L. Bittner, E. Pelletier, L. Guidi, J.O. Irisson
 
 **Corresponding author/maintainer:** `alexandre.schickele@imev-mer.fr`
 
 # 1. Introduction
 
-Planktonic organisms and by extension the composition and genetic potential of plankton in a given geographical area is influenced by the environmental context. In this notebook, we provide a series of tools to explore the relationship between the abundance of plankton genes and the environmental context, in order to project the biogeography of key metabolic pathways and as yet unknown plankton genes.
+Planktonic organisms and by extension the composition and genetic potential of plankton in a given geographical area is influenced by the environmental context. In this notebook, we provide a series of tools to explore the relationship between the relative abundance of plankton genes and the environmental context, in order to project the biogeography of key metabolic pathways and as yet unknown plankton genes.
 
-This notebook is divided in two services, designed for expert and non-expert users, respectively:
+Here we describes the entire modeling pipeline and codes. It is essentially designed for expert users with a strong genomic and modeling background.
 
--   **service 1 - R modeling framework:** This service describes the entire modeling pipeline and codes. It is essentially designed for expert users with a strong genomic and modeling background. The codes are accessible from the BlueCloud infrastructure and may also be duplicated and modified locally.
-
--   **service 2 - R Shiny application:** This services provides a ready-to-use tool to explore the biogeography of plankton genetic diversity related to key metabolic pathways. It is designed for general users and easily accessible at the following link: `[not yet implemented]`
+The codes are accessible from the BlueCloud infrastructure (<https://data.d4science.net/qa7Z>) and may also be duplicated and modified locally.
 
 ------------------------------------------------------------------------
 
-# 2. Service 1 installation
+# 2. Installation
 
 ## 2.1. Cloning the files
 
-The files for this service available in a zip.file at: <https://data.d4science.net/K6Ui>
+The files for this service available in a zip.file at: <https://data.d4science.net/qa7Z>
 
 To run the service within the BlueCloud infrastructure, you need to be registered at: <https://blue-cloud.d4science.org/group/planktongenomics>
 
--   Open a Jupyter Hub **R environment, large 32Gb RAM / 8 cores**.
+-   Open a Jupyter Hub **R environment, XL 64Gb RAM / 16 cores**.
 
 -   Copy and unzip the `bluecloud_wp3_d2_s1.zip` in the root. The pathway should be `/home/jovyan`. To unzip the file in the root, open a terminal and execute the following code:
 
